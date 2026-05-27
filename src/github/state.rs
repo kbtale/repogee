@@ -75,3 +75,31 @@ pub async fn fetch_score_file(
         Err(e) => Err(e.into()),
     }
 }
+
+pub async fn commit_score_file(
+    client: &Octocrab,
+    owner: &str,
+    repo: &str,
+    content: &str,
+    sha: Option<&str>,
+) -> Result<(), anyhow::Error> {
+    info!("Committing SCORE.md to {}/{}", owner, repo);
+    let commit_message = "chore: update repogee leaderboard [skip ci]";
+
+    if let Some(sha_str) = sha {
+        client
+            .repos(owner, repo)
+            .update_file("SCORE.md", commit_message, content, sha_str.to_string())
+            .send()
+            .await?;
+    } else {
+        client
+            .repos(owner, repo)
+            .create_file("SCORE.md", commit_message, content)
+            .send()
+            .await?;
+    }
+
+    info!("Successfully committed SCORE.md to {}/{}", owner, repo);
+    Ok(())
+}
