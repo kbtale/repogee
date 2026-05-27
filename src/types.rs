@@ -44,6 +44,39 @@ pub struct PullRequestEvent {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct Issue {
+    pub number: u64,
+    pub user: User,
+    pub labels: Vec<Label>,
+    pub state_reason: Option<String>,
+    pub body: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct IssuesEvent {
+    pub action: String,
+    pub issue: Issue,
+    pub repository: Repository,
+    pub sender: User,
+    pub installation: Option<Installation>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct IssueComment {
+    pub user: User,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct IssueCommentEvent {
+    pub action: String,
+    pub issue: Issue,
+    pub comment: IssueComment,
+    pub repository: Repository,
+    pub sender: User,
+    pub installation: Option<Installation>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct ChangedFile {
     pub filename: String,
     pub status: String,
@@ -52,4 +85,6 @@ pub struct ChangedFile {
 #[derive(Debug, Clone)]
 pub enum WebhookEvent {
     PullRequest(PullRequestEvent),
+    Issues(IssuesEvent),
+    IssueComment(IssueCommentEvent),
 }
