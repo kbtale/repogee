@@ -77,9 +77,46 @@ pub struct IssueCommentEvent {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct ChangedFile {
-    pub filename: String,
-    pub status: String,
+pub struct PullRequestReview {
+    pub state: String,
+    pub user: User,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct PullRequestReviewEvent {
+    pub action: String,
+    pub pull_request: PullRequest,
+    pub review: PullRequestReview,
+    pub repository: Repository,
+    pub sender: User,
+    pub installation: Option<Installation>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CommitAuthor {
+    pub name: String,
+    pub username: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct PushCommit {
+    pub id: String,
+    pub message: String,
+    pub author: CommitAuthor,
+    pub added: Vec<String>,
+    pub removed: Vec<String>,
+    pub modified: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct PushEvent {
+    #[serde(rename = "ref")]
+    pub ref_field: String,
+    pub forced: bool,
+    pub commits: Vec<PushCommit>,
+    pub repository: Repository,
+    pub sender: User,
+    pub installation: Option<Installation>,
 }
 
 #[derive(Debug, Clone)]
@@ -87,4 +124,12 @@ pub enum WebhookEvent {
     PullRequest(PullRequestEvent),
     Issues(IssuesEvent),
     IssueComment(IssueCommentEvent),
+    PullRequestReview(PullRequestReviewEvent),
+    Push(PushEvent),
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ChangedFile {
+    pub filename: String,
+    pub status: String,
 }
