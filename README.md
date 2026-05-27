@@ -1,8 +1,12 @@
 # Repogee
 
-Repogee tracks developer contributions, calculates experience points (XP), levels up developers, assigns classes based on commit histories, and maintains a leaderboard in a `SCORE.md` file in the root of the repository.
+**Gamify your repository contributions!**
 
-Repogee is stateless. The repository's `SCORE.md` is the single source of truth for developer statistics, eliminating the need for external databases or state stores.
+Repogee turns repository contributions into a text-based RPG. It tracks pull requests, issues, and commits to award experience points (XP), level up contributors, and dynamically assign developer classes based on the file types they edit.
+
+The best part? Repogee is completely stateless. It reads and writes user statistics directly to a markdown table in `SCORE.md` at the root of your repository. That means zero database hosting, zero external services to trust, and your git log remains the single source of truth!
+
+
 
 ## Class System
 
