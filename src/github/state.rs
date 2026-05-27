@@ -1,6 +1,47 @@
+use chrono::{DateTime, Utc};
 use octocrab::Octocrab;
 use tracing::info;
-use crate::github::parser::get_default_score_file;
+use crate::engine::calculator::calculate_level;
+use crate::engine::classes::FuturisticClass;
+use crate::github::parser::{UserStats, get_default_score_file};
+
+pub fn update_user_stats(
+    stats: &mut Vec<UserStats>,
+    username: &str,
+    xp_to_add: u32,
+    new_class: Option<FuturisticClass>,
+    last_active_time: DateTime<Utc>,
+) {
+    let normalized = username.trim().trim_start_matches('@').to_string();
+
+    let mut found = false;
+    for user in stats.iter_mut() {
+        if user.username.eq_ignore_ascii_case(&normalized) {
+            user.xp += xp_to_add;
+            user.level = calculate_level(user.xp);
+            user.last_active = Some(last_active_time);
+            if let Some(class) = new_class {
+                user.class = class;
+            }
+            found = true;
+            break;
+        }
+    }
+
+    if !found {
+        let class = new_class.unwrap_or(FuturisticClass::NexusArchitect);
+        let level = calculate_level(xp_to_add);
+        stats.push(UserStats {
+            username: normalized,
+            class,
+            level,
+            xp: xp_to_add,
+            last_active: Some(last_active_time),
+        });
+    }
+
+    stats.sort_by(|a, b| b.xp.cmp(&a.xp));
+}
 
 pub async fn fetch_score_file(
     client: &Octocrab,
