@@ -1,0 +1,38 @@
+name: 'Repogee Leaderboard'
+description: 'Gamify repository activity by dynamically updating SCORE.md in the repository root'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Cache Cargo dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry/cache
+          ~/.cargo/registry/index
+          ~/.cargo/git/db
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
+
+    - name: Build Repogee
+      shell: bash
+      run: cargo build --release
+
+    - name: Run Repogee
+      shell: bash
+      run: ./target/release/repogee --local
+
+    - name: Commit and push changes
+      shell: bash
+      run: |
+        git config --global user.name "repogee-bot"
+        git config --global user.email "repogee-bot@users.noreply.github.com"
+        if [ -f SCORE.md ] && ! git diff --quiet SCORE.md; then
+          git add SCORE.md
+          git commit -m "chore: update leaderboard SCORE.md [skip ci]"
+          git push
+        else
+          echo "No changes to SCORE.md"
+        fi
