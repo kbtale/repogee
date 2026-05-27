@@ -1,14 +1,32 @@
 use crate::engine::constants::*;
-use crate::types::{
-    ChangedFile, IssueCommentEvent, IssuesEvent, PullRequestEvent, PullRequestReviewEvent,
-};
+use crate::types::{ChangedFile, IssueCommentEvent, IssuesEvent, PullRequestEvent, PullRequestReviewEvent};
+
+pub fn calculate_level(total_xp: u32) -> u32 {
+    if total_xp == 0 {
+        return 0;
+    }
+    ((total_xp as f64).sqrt() * 0.25).floor() as u32
+}
 
 fn is_source_file(filename: &str) -> bool {
     let lower = filename.to_lowercase();
     let ext = lower.split('.').last().unwrap_or("");
     matches!(
         ext,
-        "rs" | "go" | "py" | "js" | "ts" | "java" | "c" | "cpp" | "h" | "hpp" | "sh" | "php" | "cs" | "rb" | "kt"
+        "rs" | "py"
+            | "go"
+            | "java"
+            | "js"
+            | "ts"
+            | "html"
+            | "css"
+            | "sh"
+            | "php"
+            | "c"
+            | "cpp"
+            | "cs"
+            | "swift"
+            | "kt"
     )
 }
 
@@ -62,7 +80,6 @@ pub fn calculate_pr_xp(
         if lower_body.contains("fixes #")
             || lower_body.contains("closes #")
             || lower_body.contains("resolves #")
-            || lower_body.contains("ref #")
             || lower_body.contains("fixes gh-")
         {
             base_xp += XP_LINK_ISSUE_TO_PR;
@@ -93,7 +110,7 @@ pub fn calculate_issue_xp(event: &IssuesEvent) -> u32 {
             .issue
             .labels
             .iter()
-            .any(|l| l.name.eq_ignore_ascii_case("bug"));
+            .any(|l| l.name.to_lowercase() == "bug");
         if has_bug_label {
             base_xp += BONUS_SQUASHER;
         }
