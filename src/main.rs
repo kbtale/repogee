@@ -4,6 +4,7 @@ mod engine;
 mod github;
 
 use axum::{
+    extract::State,
     http::{HeaderMap, StatusCode},
     routing::{get, post},
     response::IntoResponse,
@@ -18,6 +19,12 @@ use types::{
     IssueCommentEvent, IssuesEvent, PullRequestEvent, PullRequestReviewEvent, PushEvent,
 };
 
+#[derive(Clone)]
+pub struct AppState {
+    pub webhook_secret: String,
+    pub app_client: octocrab::Octocrab,
+}
+
 #[tokio::main]
 async fn main() {
     if let Err(e) = dotenvy::dotenv() {
@@ -26,9 +33,23 @@ async fn main() {
 
     tracing_subscriber::fmt::init();
 
+    // Startup validations
+    info!("Validating configuration and private key on startup...");
+    let webhook_secret = std::env::var("GITHUB_WEBHOOK_SECRET")
+        .expect("GITHUB_WEBHOOK_SECRET environment variable must be set");
+
+    let app_client = github::client::init_app_client()
+        .expect("Failed to initialize Octocrab App client during startup");
+
+    let state = AppState {
+        webhook_secret,
+        app_client,
+    };
+
     let app = Router::new()
         .route("/", get(health_check))
-        .route("/webhook", post(handle_webhook));
+        .route("/webhook", post(handle_webhook))
+        .with_state(state);
 
     let host = std::env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
     let port_str = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
@@ -44,6 +65,7 @@ async fn main() {
         .expect("Failed to bind TCP listener");
 
     axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
         .await
         .expect("Server failed to run");
 }
@@ -52,7 +74,34 @@ async fn health_check() -> &'static str {
     "OK"
 }
 
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
+
+    info!("Signal received, starting graceful shutdown...");
+}
+
 async fn handle_webhook(
+    State(state): State<AppState>,
     headers: HeaderMap,
     VerifiedWebhookPayload(bytes): VerifiedWebhookPayload,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
@@ -75,8 +124,9 @@ async fn handle_webhook(
 
             if let Some(ref inst) = event.installation {
                 let inst_id = inst.id;
+                let state_clone = state.clone();
                 tokio::spawn(async move {
-                    if let Err(e) = process_pull_request_event(event, inst_id).await {
+                    if let Err(e) = process_pull_request_event(state_clone, event, inst_id).await {
                         error!("Error processing PullRequestEvent: {:?}", e);
                     }
                 });
@@ -92,8 +142,9 @@ async fn handle_webhook(
 
             if let Some(ref inst) = event.installation {
                 let inst_id = inst.id;
+                let state_clone = state.clone();
                 tokio::spawn(async move {
-                    if let Err(e) = process_issues_event(event, inst_id).await {
+                    if let Err(e) = process_issues_event(state_clone, event, inst_id).await {
                         error!("Error processing IssuesEvent: {:?}", e);
                     }
                 });
@@ -109,8 +160,9 @@ async fn handle_webhook(
 
             if let Some(ref inst) = event.installation {
                 let inst_id = inst.id;
+                let state_clone = state.clone();
                 tokio::spawn(async move {
-                    if let Err(e) = process_issue_comment_event(event, inst_id).await {
+                    if let Err(e) = process_issue_comment_event(state_clone, event, inst_id).await {
                         error!("Error processing IssueCommentEvent: {:?}", e);
                     }
                 });
@@ -126,8 +178,9 @@ async fn handle_webhook(
 
             if let Some(ref inst) = event.installation {
                 let inst_id = inst.id;
+                let state_clone = state.clone();
                 tokio::spawn(async move {
-                    if let Err(e) = process_pr_review_event(event, inst_id).await {
+                    if let Err(e) = process_pr_review_event(state_clone, event, inst_id).await {
                         error!("Error processing PullRequestReviewEvent: {:?}", e);
                     }
                 });
@@ -143,8 +196,9 @@ async fn handle_webhook(
 
             if let Some(ref inst) = event.installation {
                 let inst_id = inst.id;
+                let state_clone = state.clone();
                 tokio::spawn(async move {
-                    if let Err(e) = process_push_event(event, inst_id).await {
+                    if let Err(e) = process_push_event(state_clone, event, inst_id).await {
                         error!("Error processing PushEvent: {:?}", e);
                     }
                 });
@@ -161,7 +215,11 @@ async fn handle_webhook(
     Ok((StatusCode::ACCEPTED, "Webhook event accepted for background processing".to_string()))
 }
 
-async fn process_pull_request_event(event: PullRequestEvent, inst_id: u64) -> Result<(), anyhow::Error> {
+async fn process_pull_request_event(
+    state: AppState,
+    event: PullRequestEvent,
+    inst_id: u64,
+) -> Result<(), anyhow::Error> {
     let action = &event.action;
     let is_merged = event.pull_request.merged.unwrap_or(false);
     let username = &event.pull_request.user.login;
@@ -175,7 +233,7 @@ async fn process_pull_request_event(event: PullRequestEvent, inst_id: u64) -> Re
 
     info!("Processing PR action '{}' for user @{}", action, username);
 
-    let client = github::client::get_installation_client(inst_id).await?;
+    let client = github::client::get_installation_client(&state.app_client, inst_id).await?;
 
     let mut changed_files = Vec::new();
     let mut dominant_class = None;
@@ -197,48 +255,47 @@ async fn process_pull_request_event(event: PullRequestEvent, inst_id: u64) -> Re
         }
     }
 
-    let (score_content, sha) = github::state::fetch_score_file(&client, owner, repo).await?;
-    let mut stats = github::parser::parse_score_file(&score_content);
-
-    let mut streak_active = false;
-    if action == "closed" && is_merged {
-        if let Some(user) = stats.iter().find(|u| u.username.eq_ignore_ascii_case(username)) {
-            if let Some(last_active) = user.last_active {
-                let diff = Utc::now() - last_active;
-                if diff.num_hours() < 72 {
-                    streak_active = true;
-                    info!("Streak bonus active for @{}! (Last merge was {} hours ago)", username, diff.num_hours());
-                }
-            }
-        }
-    }
-
     let pr_body = event.pull_request.body.as_deref().unwrap_or("");
     let pr_title = event.pull_request.title.as_deref().unwrap_or("");
-    let xp_to_add = engine::calculator::calculate_pr_xp(
-        &event,
-        &changed_files,
-        pr_body,
-        pr_title,
-        streak_active,
-    );
 
-    if xp_to_add == 0 && dominant_class.is_none() {
-        info!("No XP earned and no class updates for @{} from this PR event", username);
-        return Ok(());
-    }
+    github::state::update_leaderboard_with_retry(&client, owner, repo, username, |stats| {
+        let streak_active = if action == "closed" && is_merged {
+            stats.iter()
+                .find(|u| u.username.eq_ignore_ascii_case(username))
+                .and_then(|u| u.last_active)
+                .map(|last_active| {
+                    let diff = Utc::now() - last_active;
+                    let is_active = diff.num_hours() < 72;
+                    if is_active {
+                        info!("Streak bonus active for @{}! (Last merge was {} hours ago)", username, diff.num_hours());
+                    }
+                    is_active
+                })
+                .unwrap_or(false)
+        } else {
+            false
+        };
 
-    let now = Utc::now();
-    github::state::update_user_stats(&mut stats, username, xp_to_add, dominant_class, now);
 
-    let new_score_content = github::parser::generate_score_file(&stats);
-    github::state::commit_score_file(&client, owner, repo, &new_score_content, sha.as_deref()).await?;
+        let xp_to_add = engine::calculator::calculate_pr_xp(
+            &event,
+            &changed_files,
+            pr_body,
+            pr_title,
+            streak_active,
+        );
+        
+        (xp_to_add, dominant_class)
+    }).await?;
 
-    info!("Successfully updated leaderboard for PR merge/open by @{} (+{} XP)", username, xp_to_add);
     Ok(())
 }
 
-async fn process_issues_event(event: IssuesEvent, inst_id: u64) -> Result<(), anyhow::Error> {
+async fn process_issues_event(
+    state: AppState,
+    event: IssuesEvent,
+    inst_id: u64,
+) -> Result<(), anyhow::Error> {
     let action = &event.action;
     let username = &event.sender.login;
     let owner = &event.repository.owner.login;
@@ -252,27 +309,21 @@ async fn process_issues_event(event: IssuesEvent, inst_id: u64) -> Result<(), an
 
     info!("Processing Issue action '{}' for user @{}", action, username);
 
-    let client = github::client::get_installation_client(inst_id).await?;
-    let xp_to_add = engine::calculator::calculate_issue_xp(&event);
+    let client = github::client::get_installation_client(&state.app_client, inst_id).await?;
 
-    if xp_to_add == 0 {
-        return Ok(());
-    }
+    github::state::update_leaderboard_with_retry(&client, owner, repo, username, |_stats| {
+        let xp_to_add = engine::calculator::calculate_issue_xp(&event);
+        (xp_to_add, None)
+    }).await?;
 
-    let (score_content, sha) = github::state::fetch_score_file(&client, owner, repo).await?;
-    let mut stats = github::parser::parse_score_file(&score_content);
-
-    let now = Utc::now();
-    github::state::update_user_stats(&mut stats, username, xp_to_add, None, now);
-
-    let new_score_content = github::parser::generate_score_file(&stats);
-    github::state::commit_score_file(&client, owner, repo, &new_score_content, sha.as_deref()).await?;
-
-    info!("Successfully updated leaderboard for Issue event by @{} (+{} XP)", username, xp_to_add);
     Ok(())
 }
 
-async fn process_issue_comment_event(event: IssueCommentEvent, inst_id: u64) -> Result<(), anyhow::Error> {
+async fn process_issue_comment_event(
+    state: AppState,
+    event: IssueCommentEvent,
+    inst_id: u64,
+) -> Result<(), anyhow::Error> {
     if event.action != "created" {
         return Ok(());
     }
@@ -283,27 +334,21 @@ async fn process_issue_comment_event(event: IssueCommentEvent, inst_id: u64) -> 
 
     info!("Processing Issue Comment action 'created' for user @{}", username);
 
-    let client = github::client::get_installation_client(inst_id).await?;
-    let xp_to_add = engine::calculator::calculate_comment_xp(&event);
+    let client = github::client::get_installation_client(&state.app_client, inst_id).await?;
 
-    if xp_to_add == 0 {
-        return Ok(());
-    }
+    github::state::update_leaderboard_with_retry(&client, owner, repo, username, |_stats| {
+        let xp_to_add = engine::calculator::calculate_comment_xp(&event);
+        (xp_to_add, None)
+    }).await?;
 
-    let (score_content, sha) = github::state::fetch_score_file(&client, owner, repo).await?;
-    let mut stats = github::parser::parse_score_file(&score_content);
-
-    let now = Utc::now();
-    github::state::update_user_stats(&mut stats, username, xp_to_add, None, now);
-
-    let new_score_content = github::parser::generate_score_file(&stats);
-    github::state::commit_score_file(&client, owner, repo, &new_score_content, sha.as_deref()).await?;
-
-    info!("Successfully updated leaderboard for Comment event by @{} (+{} XP)", username, xp_to_add);
     Ok(())
 }
 
-async fn process_pr_review_event(event: PullRequestReviewEvent, inst_id: u64) -> Result<(), anyhow::Error> {
+async fn process_pr_review_event(
+    state: AppState,
+    event: PullRequestReviewEvent,
+    inst_id: u64,
+) -> Result<(), anyhow::Error> {
     if event.action != "submitted" || event.review.state != "approved" {
         return Ok(());
     }
@@ -314,27 +359,21 @@ async fn process_pr_review_event(event: PullRequestReviewEvent, inst_id: u64) ->
 
     info!("Processing PR Review approval for user @{}", username);
 
-    let client = github::client::get_installation_client(inst_id).await?;
-    let xp_to_add = engine::calculator::calculate_review_xp(&event);
+    let client = github::client::get_installation_client(&state.app_client, inst_id).await?;
 
-    if xp_to_add == 0 {
-        return Ok(());
-    }
+    github::state::update_leaderboard_with_retry(&client, owner, repo, username, |_stats| {
+        let xp_to_add = engine::calculator::calculate_review_xp(&event);
+        (xp_to_add, None)
+    }).await?;
 
-    let (score_content, sha) = github::state::fetch_score_file(&client, owner, repo).await?;
-    let mut stats = github::parser::parse_score_file(&score_content);
-
-    let now = Utc::now();
-    github::state::update_user_stats(&mut stats, username, xp_to_add, None, now);
-
-    let new_score_content = github::parser::generate_score_file(&stats);
-    github::state::commit_score_file(&client, owner, repo, &new_score_content, sha.as_deref()).await?;
-
-    info!("Successfully updated leaderboard for PR Review by @{} (+{} XP)", username, xp_to_add);
     Ok(())
 }
 
-async fn process_push_event(event: PushEvent, inst_id: u64) -> Result<(), anyhow::Error> {
+async fn process_push_event(
+    state: AppState,
+    event: PushEvent,
+    inst_id: u64,
+) -> Result<(), anyhow::Error> {
     let username = &event.sender.login;
     let owner = &event.repository.owner.login;
     let repo = &event.repository.name;
@@ -365,16 +404,12 @@ async fn process_push_event(event: PushEvent, inst_id: u64) -> Result<(), anyhow
 
     info!("Processing push event for @{}. Dominant class based on pushed files: {:?}", username, class);
 
-    let client = github::client::get_installation_client(inst_id).await?;
-    let (score_content, sha) = github::state::fetch_score_file(&client, owner, repo).await?;
-    let mut stats = github::parser::parse_score_file(&score_content);
+    let client = github::client::get_installation_client(&state.app_client, inst_id).await?;
 
-    let now = Utc::now();
-    github::state::update_user_stats(&mut stats, username, 0, Some(class), now);
+    github::state::update_leaderboard_with_retry(&client, owner, repo, username, |_stats| {
+        (0, Some(class))
+    }).await?;
 
-    let new_score_content = github::parser::generate_score_file(&stats);
-    github::state::commit_score_file(&client, owner, repo, &new_score_content, sha.as_deref()).await?;
-
-    info!("Successfully updated class to {:?} for @{} on push event", class, username);
     Ok(())
 }
+
