@@ -10,7 +10,8 @@ pub fn calculate_level(total_xp: u32) -> u32 {
 
 fn is_source_file(filename: &str) -> bool {
     let lower = filename.to_lowercase();
-    let ext = lower.split('.').last().unwrap_or("");
+    let ext = lower.split('.').next_back().unwrap_or("");
+
     matches!(
         ext,
         "rs" | "py"
@@ -52,7 +53,7 @@ fn is_source_file(filename: &str) -> bool {
 
 fn is_doc_config_file(filename: &str) -> bool {
     let lower = filename.to_lowercase();
-    let ext = lower.split('.').last().unwrap_or("");
+    let ext = lower.split('.').next_back().unwrap_or("");
     matches!(ext, "json" | "yaml" | "yml" | "toml" | "xml" | "md" | "txt")
 }
 

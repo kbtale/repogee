@@ -1,4 +1,6 @@
+#![allow(dead_code)]
 use serde::Deserialize;
+
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct User {

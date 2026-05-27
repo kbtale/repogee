@@ -50,17 +50,33 @@ impl std::fmt::Display for FuturisticClass {
 
 pub fn classify_file(path: &str) -> Option<FuturisticClass> {
     let lower_path = path.to_lowercase();
-    let filename = lower_path.split('/').last().unwrap_or(&lower_path);
+    
+    // Cross-platform path handling
+    let path_buf = std::path::Path::new(&lower_path);
+    let filename = path_buf.file_name()
+        .and_then(|f| f.to_str())
+        .unwrap_or(&lower_path);
 
     if filename.contains(".prettierrc") || filename.contains(".eslintrc") || filename == "prettier.config.js" || filename == "eslint.config.js" {
         return Some(FuturisticClass::SyntaxPurifier);
     }
 
-    if filename == "dockerfile" || filename.starts_with("dockerfile.") || filename.ends_with(".dockerfile") {
+    // Void Engineer (DevOps & Infrastructure) rules
+    let is_workflow = lower_path.contains(".github/workflows") || lower_path.contains(".github\\workflows");
+    if is_workflow 
+        || filename == "dockerfile" 
+        || filename.starts_with("dockerfile.") 
+        || filename.ends_with(".dockerfile")
+        || filename == "makefile"
+        || filename == "vagrantfile"
+        || filename == "jenkinsfile"
+        || filename.starts_with("docker-compose.")
+    {
         return Some(FuturisticClass::VoidEngineer);
     }
 
-    if let Some(ext) = filename.split('.').last() {
+    if let Some(ext) = filename.split('.').next_back() {
+
         match ext {
             "py" | "sh" | "bash" | "zsh" => Some(FuturisticClass::GridInfiltrator),
             "rs" | "go" | "java" | "php" | "c" | "cpp" | "h" | "hpp" | "cs" | "swift" | "kt" => Some(FuturisticClass::NexusArchitect),
@@ -75,6 +91,7 @@ pub fn classify_file(path: &str) -> Option<FuturisticClass> {
         None
     }
 }
+
 
 pub fn classify_dominant_class(files: &[String]) -> Option<FuturisticClass> {
     if files.is_empty() {

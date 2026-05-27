@@ -103,3 +103,85 @@ pub async fn commit_score_file(
     info!("Successfully committed SCORE.md to {}/{}", owner, repo);
     Ok(())
 }
+
+pub async fn update_leaderboard_with_retry<F>(
+    client: &Octocrab,
+    owner: &str,
+    repo: &str,
+    username: &str,
+    mut update_fn: F,
+) -> Result<(), anyhow::Error>
+where
+    F: FnMut(&[UserStats]) -> (u32, Option<FuturisticClass>),
+{
+    let mut attempts = 0;
+    let max_attempts = 5;
+
+    loop {
+        attempts += 1;
+        info!(
+            "Attempt {} of {} to update SCORE.md for user @{}",
+            attempts, max_attempts, username
+        );
+
+        let (score_content, sha) = fetch_score_file(client, owner, repo).await?;
+        let mut stats = crate::github::parser::parse_score_file(&score_content);
+
+        let (xp_to_add, new_class) = update_fn(&stats);
+
+        if xp_to_add == 0 && new_class.is_none() {
+            info!("No XP earned and no class updates for @{} from this event", username);
+            return Ok(());
+        }
+
+        let now = Utc::now();
+        update_user_stats(&mut stats, username, xp_to_add, new_class, now);
+
+        let new_score_content = crate::github::parser::generate_score_file(&stats);
+
+        if new_score_content == score_content {
+            info!("No changes to SCORE.md, skipping commit");
+            return Ok(());
+        }
+
+        match commit_score_file(client, owner, repo, &new_score_content, sha.as_deref()).await {
+            Ok(_) => {
+                info!("Successfully committed SCORE.md after {} attempts", attempts);
+                return Ok(());
+            }
+            Err(e) => {
+                if attempts >= max_attempts {
+                    tracing::error!(
+                        "Failed to commit SCORE.md after {} attempts: {:?}",
+                        attempts,
+                        e
+                    );
+                    return Err(e);
+                }
+
+                let is_transient = if let Some(octocrab::Error::GitHub { source, .. }) = e.downcast_ref::<octocrab::Error>() {
+                    let status = source.status_code.as_u16();
+                    status == 409 || status == 422 || (500..600).contains(&status)
+                } else {
+                    false
+                };
+
+
+
+                if is_transient {
+                    let delay_ms = 100 * (1 << attempts)
+                        + (Utc::now().timestamp_nanos_opt().unwrap_or(0) as u64 % 100);
+                    tracing::warn!(
+                        "Transient error/conflict updating SCORE.md: {:?}. Retrying in {}ms...",
+                        e,
+                        delay_ms
+                    );
+                    tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+                } else {
+                    return Err(e);
+                }
+            }
+        }
+    }
+}
+

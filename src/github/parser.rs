@@ -35,11 +35,8 @@ pub fn parse_score_file(content: &str) -> Vec<UserStats> {
                 continue;
             }
 
-            let username = if username_raw.starts_with('@') {
-                username_raw[1..].to_string()
-            } else {
-                username_raw.to_string()
-            };
+            let username = username_raw.strip_prefix('@').unwrap_or(username_raw).to_string();
+
 
             let class = FuturisticClass::from_str(class_raw).unwrap_or(FuturisticClass::NexusArchitect);
 
