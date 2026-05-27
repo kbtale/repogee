@@ -68,6 +68,34 @@ pub fn parse_score_file(content: &str) -> Vec<UserStats> {
     stats
 }
 
+pub fn generate_score_file(stats: &[UserStats]) -> String {
+    let mut md = String::new();
+    
+    md.push_str("# 🏆 Repogee Leaderboard\n\n");
+    md.push_str("Gamifying repository activity using Rust, serverless architecture, and GitHub webhooks.\n\n");
+    
+    md.push_str("| Username | Class | Level | XP | Last Active |\n");
+    md.push_str("| --- | --- | --- | --- | --- |\n");
+
+    for user in stats {
+        let last_active_str = match user.last_active {
+            Some(dt) => dt.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+            None => "N/A".to_string(),
+        };
+
+        md.push_str(&format!(
+            "| @{} | {} | {} | {} | {} |\n",
+            user.username,
+            user.class.as_str(),
+            user.level,
+            user.xp,
+            last_active_str
+        ));
+    }
+
+    md
+}
+
 pub fn get_default_score_file() -> String {
-    String::new()
+    generate_score_file(&[])
 }
