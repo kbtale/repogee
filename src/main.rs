@@ -25,13 +25,216 @@ pub struct AppState {
     pub app_client: octocrab::Octocrab,
 }
 
+fn get_local_changed_files() -> Vec<types::ChangedFile> {
+    let output = std::process::Command::new("git")
+        .args(["diff", "--name-status", "HEAD~1", "HEAD"])
+        .output();
+    
+    let stdout = match output {
+        Ok(out) if out.status.success() => String::from_utf8_lossy(&out.stdout).to_string(),
+        _ => {
+            let fb = std::process::Command::new("git")
+                .args(["show", "--name-status", "--oneline", "HEAD"])
+                .output();
+            match fb {
+                Ok(out) if out.status.success() => String::from_utf8_lossy(&out.stdout).to_string(),
+                _ => return Vec::new(),
+            }
+        }
+    };
+
+    let mut changed = Vec::new();
+    for line in stdout.lines() {
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() >= 2 {
+            let status = match parts[0] {
+                "A" => "added",
+                "D" => "deleted",
+                "M" => "modified",
+                _ => "modified",
+            };
+            changed.push(types::ChangedFile {
+                filename: parts[1].to_string(),
+                status: status.to_string(),
+            });
+        }
+    }
+    changed
+}
+
+async fn run_local_cli() -> Result<(), anyhow::Error> {
+    info!("Running Repogee in local CLI/GitHub Actions mode");
+
+    let event_name = std::env::var("GITHUB_EVENT_NAME")
+        .map_err(|_| anyhow::anyhow!("GITHUB_EVENT_NAME environment variable is not set"))?;
+    let event_path = std::env::var("GITHUB_EVENT_PATH")
+        .map_err(|_| anyhow::anyhow!("GITHUB_EVENT_PATH environment variable is not set"))?;
+
+    info!("Event Name: {}", event_name);
+    info!("Event Path: {}", event_path);
+
+    let payload_bytes = std::fs::read(&event_path)
+        .map_err(|e| anyhow::anyhow!("Failed to read event payload at {}: {:?}", event_path, e))?;
+
+    let score_path = "SCORE.md";
+    let score_content = if std::path::Path::new(score_path).exists() {
+        std::fs::read_to_string(score_path)
+            .map_err(|e| anyhow::anyhow!("Failed to read SCORE.md: {:?}", e))?
+    } else {
+        github::parser::get_default_score_file()
+    };
+    let mut stats = github::parser::parse_score_file(&score_content);
+
+    let (username, xp_to_add, dominant_class) = match event_name.as_str() {
+        "pull_request" => {
+            let event: PullRequestEvent = serde_json::from_slice(&payload_bytes)
+                .map_err(|e| anyhow::anyhow!("Failed to parse PullRequestEvent: {:?}", e))?;
+            let action = &event.action;
+            let is_merged = event.pull_request.merged.unwrap_or(false);
+            let username = event.pull_request.user.login.clone();
+
+            if action != "opened" && !(action == "closed" && is_merged) {
+                info!("PR action '{}' is not tracked for XP, exiting", action);
+                return Ok(());
+            }
+
+            let changed_files = get_local_changed_files();
+            let file_names: Vec<String> = changed_files.iter().map(|f| f.filename.clone()).collect();
+            let dominant_class = engine::classes::classify_dominant_class(&file_names);
+
+            let pr_body = event.pull_request.body.as_deref().unwrap_or("");
+            let pr_title = event.pull_request.title.as_deref().unwrap_or("");
+
+            let streak_active = stats.iter()
+                .find(|u| u.username.eq_ignore_ascii_case(&username))
+                .and_then(|u| u.last_active)
+                .map(|last_active| (Utc::now() - last_active).num_hours() < 72)
+                .unwrap_or(false);
+
+            let xp_to_add = engine::calculator::calculate_pr_xp(
+                &event,
+                &changed_files,
+                pr_body,
+                pr_title,
+                streak_active,
+            );
+
+            (username, xp_to_add, dominant_class)
+        }
+        "issues" => {
+            let event: IssuesEvent = serde_json::from_slice(&payload_bytes)
+                .map_err(|e| anyhow::anyhow!("Failed to parse IssuesEvent: {:?}", e))?;
+            let action = &event.action;
+            let username = event.sender.login.clone();
+            let is_completed = event.issue.state_reason.as_deref() == Some("completed");
+
+            if action != "opened" && !(action == "closed" && is_completed) {
+                info!("Issue action '{}' not tracked for XP, exiting", action);
+                return Ok(());
+            }
+
+            let xp_to_add = engine::calculator::calculate_issue_xp(&event);
+            (username, xp_to_add, None)
+        }
+        "issue_comment" => {
+            let event: IssueCommentEvent = serde_json::from_slice(&payload_bytes)
+                .map_err(|e| anyhow::anyhow!("Failed to parse IssueCommentEvent: {:?}", e))?;
+            
+            if event.action != "created" {
+                info!("Issue comment action '{}' is not tracked for XP, exiting", event.action);
+                return Ok(());
+            }
+
+            let username = event.comment.user.login.clone();
+            let xp_to_add = engine::calculator::calculate_comment_xp(&event);
+            (username, xp_to_add, None)
+        }
+        "pull_request_review" => {
+            let event: PullRequestReviewEvent = serde_json::from_slice(&payload_bytes)
+                .map_err(|e| anyhow::anyhow!("Failed to parse PullRequestReviewEvent: {:?}", e))?;
+
+            if event.action != "submitted" || event.review.state != "approved" {
+                info!("PR review action '{}' state '{}' is not tracked for XP, exiting", event.action, event.review.state);
+                return Ok(());
+            }
+
+            let username = event.review.user.login.clone();
+            let xp_to_add = engine::calculator::calculate_review_xp(&event);
+            (username, xp_to_add, None)
+        }
+        "push" => {
+            let event: PushEvent = serde_json::from_slice(&payload_bytes)
+                .map_err(|e| anyhow::anyhow!("Failed to parse PushEvent: {:?}", e))?;
+            
+            let username = event.sender.login.clone();
+
+            let mut touched_files = std::collections::HashSet::new();
+            for commit in &event.commits {
+                for file in &commit.added {
+                    touched_files.insert(file.clone());
+                }
+                for file in &commit.modified {
+                    touched_files.insert(file.clone());
+                }
+                for file in &commit.removed {
+                    touched_files.insert(file.clone());
+                }
+            }
+
+            if touched_files.is_empty() {
+                info!("No files changed in push commit, exiting");
+                return Ok(());
+            }
+
+            let files_list: Vec<String> = touched_files.into_iter().collect();
+            let dominant_class = engine::classes::classify_dominant_class(&files_list);
+
+            (username, 0, dominant_class)
+        }
+        unsupported => {
+            info!("Received unsupported GitHub event: {}", unsupported);
+            return Ok(());
+        }
+    };
+
+    if xp_to_add == 0 && dominant_class.is_none() {
+        info!("No XP earned and no class updates for @{} from this event", username);
+        return Ok(());
+    }
+
+    let now = Utc::now();
+    github::state::update_user_stats(&mut stats, &username, xp_to_add, dominant_class, now);
+
+    let new_score_content = github::parser::generate_score_file(&stats);
+    std::fs::write(score_path, new_score_content)
+        .map_err(|e| anyhow::anyhow!("Failed to write to SCORE.md: {:?}", e))?;
+
+    info!("Successfully updated SCORE.md locally for @{} (+{} XP)", username, xp_to_add);
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() {
-    if let Err(e) = dotenvy::dotenv() {
+    if let (Err(e), Err(_)) = (dotenvy::dotenv(), std::env::var("GITHUB_ACTIONS")) {
         eprintln!("Warning: Failed to load .env file: {}", e);
     }
 
+
     tracing_subscriber::fmt::init();
+
+    let args: Vec<String> = std::env::args().collect();
+    let is_local = args.contains(&"--local".to_string())
+        || args.contains(&"-l".to_string())
+        || std::env::var("GITHUB_ACTIONS").map(|val| val == "true").unwrap_or(false);
+
+    if is_local {
+        if let Err(e) = run_local_cli().await {
+            error!("Error in local CLI execution: {:?}", e);
+            std::process::exit(1);
+        }
+        std::process::exit(0);
+    }
+
 
     // Startup validations
     info!("Validating configuration and private key on startup...");
