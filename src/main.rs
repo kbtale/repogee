@@ -75,10 +75,11 @@ async fn handle_webhook(
 
             if let Some(ref inst) = event.installation {
                 let inst_id = inst.id;
-                if let Err(e) = process_pull_request_event(event, inst_id).await {
-                    error!("Error processing PullRequestEvent: {:?}", e);
-                    return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Processing failed: {}", e)));
-                }
+                tokio::spawn(async move {
+                    if let Err(e) = process_pull_request_event(event, inst_id).await {
+                        error!("Error processing PullRequestEvent: {:?}", e);
+                    }
+                });
             } else {
                 warn!("Missing installation ID in pull_request event, ignoring");
             }
@@ -91,10 +92,11 @@ async fn handle_webhook(
 
             if let Some(ref inst) = event.installation {
                 let inst_id = inst.id;
-                if let Err(e) = process_issues_event(event, inst_id).await {
-                    error!("Error processing IssuesEvent: {:?}", e);
-                    return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Processing failed: {}", e)));
-                }
+                tokio::spawn(async move {
+                    if let Err(e) = process_issues_event(event, inst_id).await {
+                        error!("Error processing IssuesEvent: {:?}", e);
+                    }
+                });
             } else {
                 warn!("Missing installation ID in issues event, ignoring");
             }
@@ -107,10 +109,11 @@ async fn handle_webhook(
 
             if let Some(ref inst) = event.installation {
                 let inst_id = inst.id;
-                if let Err(e) = process_issue_comment_event(event, inst_id).await {
-                    error!("Error processing IssueCommentEvent: {:?}", e);
-                    return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Processing failed: {}", e)));
-                }
+                tokio::spawn(async move {
+                    if let Err(e) = process_issue_comment_event(event, inst_id).await {
+                        error!("Error processing IssueCommentEvent: {:?}", e);
+                    }
+                });
             } else {
                 warn!("Missing installation ID in issue_comment event, ignoring");
             }
@@ -123,10 +126,11 @@ async fn handle_webhook(
 
             if let Some(ref inst) = event.installation {
                 let inst_id = inst.id;
-                if let Err(e) = process_pr_review_event(event, inst_id).await {
-                    error!("Error processing PullRequestReviewEvent: {:?}", e);
-                    return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Processing failed: {}", e)));
-                }
+                tokio::spawn(async move {
+                    if let Err(e) = process_pr_review_event(event, inst_id).await {
+                        error!("Error processing PullRequestReviewEvent: {:?}", e);
+                    }
+                });
             } else {
                 warn!("Missing installation ID in pull_request_review event, ignoring");
             }
@@ -139,21 +143,22 @@ async fn handle_webhook(
 
             if let Some(ref inst) = event.installation {
                 let inst_id = inst.id;
-                if let Err(e) = process_push_event(event, inst_id).await {
-                    error!("Error processing PushEvent: {:?}", e);
-                    return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Processing failed: {}", e)));
-                }
+                tokio::spawn(async move {
+                    if let Err(e) = process_push_event(event, inst_id).await {
+                        error!("Error processing PushEvent: {:?}", e);
+                    }
+                });
             } else {
                 warn!("Missing installation ID in push event, ignoring");
             }
         }
         _ => {
             info!("Received unsupported GitHub event: {}", event_name);
-            return Ok((StatusCode::OK, "Event received but unsupported".to_string()));
+            return Ok((StatusCode::ACCEPTED, "Event received but unsupported".to_string()));
         }
     }
 
-    Ok((StatusCode::OK, "Webhook event processed successfully".to_string()))
+    Ok((StatusCode::ACCEPTED, "Webhook event accepted for background processing".to_string()))
 }
 
 async fn process_pull_request_event(event: PullRequestEvent, inst_id: u64) -> Result<(), anyhow::Error> {
