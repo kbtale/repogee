@@ -9,6 +9,7 @@ use axum::{
     response::IntoResponse,
     Router,
 };
+use chrono::Utc;
 use std::net::SocketAddr;
 use tracing::{error, info, warn};
 
@@ -71,12 +72,304 @@ async fn handle_webhook(
                 error!("Failed to parse PullRequestEvent: {:?}", e);
                 (StatusCode::BAD_REQUEST, format!("Invalid payload: {}", e))
             })?;
-            info!("PR action '{}'", event.action);
+
+            if let Some(ref inst) = event.installation {
+                let inst_id = inst.id;
+                if let Err(e) = process_pull_request_event(event, inst_id).await {
+                    error!("Error processing PullRequestEvent: {:?}", e);
+                    return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Processing failed: {}", e)));
+                }
+            } else {
+                warn!("Missing installation ID in pull_request event, ignoring");
+            }
+        }
+        "issues" => {
+            let event: IssuesEvent = serde_json::from_slice(&bytes).map_err(|e| {
+                error!("Failed to parse IssuesEvent: {:?}", e);
+                (StatusCode::BAD_REQUEST, format!("Invalid payload: {}", e))
+            })?;
+
+            if let Some(ref inst) = event.installation {
+                let inst_id = inst.id;
+                if let Err(e) = process_issues_event(event, inst_id).await {
+                    error!("Error processing IssuesEvent: {:?}", e);
+                    return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Processing failed: {}", e)));
+                }
+            } else {
+                warn!("Missing installation ID in issues event, ignoring");
+            }
+        }
+        "issue_comment" => {
+            let event: IssueCommentEvent = serde_json::from_slice(&bytes).map_err(|e| {
+                error!("Failed to parse IssueCommentEvent: {:?}", e);
+                (StatusCode::BAD_REQUEST, format!("Invalid payload: {}", e))
+            })?;
+
+            if let Some(ref inst) = event.installation {
+                let inst_id = inst.id;
+                if let Err(e) = process_issue_comment_event(event, inst_id).await {
+                    error!("Error processing IssueCommentEvent: {:?}", e);
+                    return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Processing failed: {}", e)));
+                }
+            } else {
+                warn!("Missing installation ID in issue_comment event, ignoring");
+            }
+        }
+        "pull_request_review" => {
+            let event: PullRequestReviewEvent = serde_json::from_slice(&bytes).map_err(|e| {
+                error!("Failed to parse PullRequestReviewEvent: {:?}", e);
+                (StatusCode::BAD_REQUEST, format!("Invalid payload: {}", e))
+            })?;
+
+            if let Some(ref inst) = event.installation {
+                let inst_id = inst.id;
+                if let Err(e) = process_pr_review_event(event, inst_id).await {
+                    error!("Error processing PullRequestReviewEvent: {:?}", e);
+                    return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Processing failed: {}", e)));
+                }
+            } else {
+                warn!("Missing installation ID in pull_request_review event, ignoring");
+            }
+        }
+        "push" => {
+            let event: PushEvent = serde_json::from_slice(&bytes).map_err(|e| {
+                error!("Failed to parse PushEvent: {:?}", e);
+                (StatusCode::BAD_REQUEST, format!("Invalid payload: {}", e))
+            })?;
+
+            if let Some(ref inst) = event.installation {
+                let inst_id = inst.id;
+                if let Err(e) = process_push_event(event, inst_id).await {
+                    error!("Error processing PushEvent: {:?}", e);
+                    return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Processing failed: {}", e)));
+                }
+            } else {
+                warn!("Missing installation ID in push event, ignoring");
+            }
         }
         _ => {
             info!("Received unsupported GitHub event: {}", event_name);
+            return Ok((StatusCode::OK, "Event received but unsupported".to_string()));
         }
     }
 
-    Ok((StatusCode::OK, "Webhook event processed".to_string()))
+    Ok((StatusCode::OK, "Webhook event processed successfully".to_string()))
+}
+
+async fn process_pull_request_event(event: PullRequestEvent, inst_id: u64) -> Result<(), anyhow::Error> {
+    let action = &event.action;
+    let is_merged = event.pull_request.merged.unwrap_or(false);
+    let username = &event.pull_request.user.login;
+    let owner = &event.repository.owner.login;
+    let repo = &event.repository.name;
+
+    if action != "opened" && !(action == "closed" && is_merged) {
+        info!("PR action '{}' is not tracked for XP, ignoring", action);
+        return Ok(());
+    }
+
+    info!("Processing PR action '{}' for user @{}", action, username);
+
+    let client = github::client::get_installation_client(inst_id).await?;
+
+    let mut changed_files = Vec::new();
+    let mut dominant_class = None;
+    if action == "closed" && is_merged {
+        info!("Fetching file diffs for PR #{}", event.pull_request.number);
+        match client.pulls(owner, repo).list_files(event.pull_request.number).await {
+            Ok(page) => {
+                let file_names: Vec<String> = page.items.iter().map(|f| f.filename.clone()).collect();
+                dominant_class = engine::classes::classify_dominant_class(&file_names);
+                
+                changed_files = page.items.into_iter().map(|f| types::ChangedFile {
+                    filename: f.filename,
+                    status: format!("{:?}", f.status),
+                }).collect();
+            }
+            Err(e) => {
+                warn!("Failed to list files for PR #{}: {:?}", event.pull_request.number, e);
+            }
+        }
+    }
+
+    let (score_content, sha) = github::state::fetch_score_file(&client, owner, repo).await?;
+    let mut stats = github::parser::parse_score_file(&score_content);
+
+    let mut streak_active = false;
+    if action == "closed" && is_merged {
+        if let Some(user) = stats.iter().find(|u| u.username.eq_ignore_ascii_case(username)) {
+            if let Some(last_active) = user.last_active {
+                let diff = Utc::now() - last_active;
+                if diff.num_hours() < 72 {
+                    streak_active = true;
+                    info!("Streak bonus active for @{}! (Last merge was {} hours ago)", username, diff.num_hours());
+                }
+            }
+        }
+    }
+
+    let pr_body = event.pull_request.body.as_deref().unwrap_or("");
+    let pr_title = event.pull_request.title.as_deref().unwrap_or("");
+    let xp_to_add = engine::calculator::calculate_pr_xp(
+        &event,
+        &changed_files,
+        pr_body,
+        pr_title,
+        streak_active,
+    );
+
+    if xp_to_add == 0 && dominant_class.is_none() {
+        info!("No XP earned and no class updates for @{} from this PR event", username);
+        return Ok(());
+    }
+
+    let now = Utc::now();
+    github::state::update_user_stats(&mut stats, username, xp_to_add, dominant_class, now);
+
+    let new_score_content = github::parser::generate_score_file(&stats);
+    github::state::commit_score_file(&client, owner, repo, &new_score_content, sha.as_deref()).await?;
+
+    info!("Successfully updated leaderboard for PR merge/open by @{} (+{} XP)", username, xp_to_add);
+    Ok(())
+}
+
+async fn process_issues_event(event: IssuesEvent, inst_id: u64) -> Result<(), anyhow::Error> {
+    let action = &event.action;
+    let username = &event.sender.login;
+    let owner = &event.repository.owner.login;
+    let repo = &event.repository.name;
+    let is_completed = event.issue.state_reason.as_deref() == Some("completed");
+
+    if action != "opened" && !(action == "closed" && is_completed) {
+        info!("Issue action '{}' (completed={}) not tracked for XP, ignoring", action, is_completed);
+        return Ok(());
+    }
+
+    info!("Processing Issue action '{}' for user @{}", action, username);
+
+    let client = github::client::get_installation_client(inst_id).await?;
+    let xp_to_add = engine::calculator::calculate_issue_xp(&event);
+
+    if xp_to_add == 0 {
+        return Ok(());
+    }
+
+    let (score_content, sha) = github::state::fetch_score_file(&client, owner, repo).await?;
+    let mut stats = github::parser::parse_score_file(&score_content);
+
+    let now = Utc::now();
+    github::state::update_user_stats(&mut stats, username, xp_to_add, None, now);
+
+    let new_score_content = github::parser::generate_score_file(&stats);
+    github::state::commit_score_file(&client, owner, repo, &new_score_content, sha.as_deref()).await?;
+
+    info!("Successfully updated leaderboard for Issue event by @{} (+{} XP)", username, xp_to_add);
+    Ok(())
+}
+
+async fn process_issue_comment_event(event: IssueCommentEvent, inst_id: u64) -> Result<(), anyhow::Error> {
+    if event.action != "created" {
+        return Ok(());
+    }
+
+    let username = &event.comment.user.login;
+    let owner = &event.repository.owner.login;
+    let repo = &event.repository.name;
+
+    info!("Processing Issue Comment action 'created' for user @{}", username);
+
+    let client = github::client::get_installation_client(inst_id).await?;
+    let xp_to_add = engine::calculator::calculate_comment_xp(&event);
+
+    if xp_to_add == 0 {
+        return Ok(());
+    }
+
+    let (score_content, sha) = github::state::fetch_score_file(&client, owner, repo).await?;
+    let mut stats = github::parser::parse_score_file(&score_content);
+
+    let now = Utc::now();
+    github::state::update_user_stats(&mut stats, username, xp_to_add, None, now);
+
+    let new_score_content = github::parser::generate_score_file(&stats);
+    github::state::commit_score_file(&client, owner, repo, &new_score_content, sha.as_deref()).await?;
+
+    info!("Successfully updated leaderboard for Comment event by @{} (+{} XP)", username, xp_to_add);
+    Ok(())
+}
+
+async fn process_pr_review_event(event: PullRequestReviewEvent, inst_id: u64) -> Result<(), anyhow::Error> {
+    if event.action != "submitted" || event.review.state != "approved" {
+        return Ok(());
+    }
+
+    let username = &event.review.user.login;
+    let owner = &event.repository.owner.login;
+    let repo = &event.repository.name;
+
+    info!("Processing PR Review approval for user @{}", username);
+
+    let client = github::client::get_installation_client(inst_id).await?;
+    let xp_to_add = engine::calculator::calculate_review_xp(&event);
+
+    if xp_to_add == 0 {
+        return Ok(());
+    }
+
+    let (score_content, sha) = github::state::fetch_score_file(&client, owner, repo).await?;
+    let mut stats = github::parser::parse_score_file(&score_content);
+
+    let now = Utc::now();
+    github::state::update_user_stats(&mut stats, username, xp_to_add, None, now);
+
+    let new_score_content = github::parser::generate_score_file(&stats);
+    github::state::commit_score_file(&client, owner, repo, &new_score_content, sha.as_deref()).await?;
+
+    info!("Successfully updated leaderboard for PR Review by @{} (+{} XP)", username, xp_to_add);
+    Ok(())
+}
+
+async fn process_push_event(event: PushEvent, inst_id: u64) -> Result<(), anyhow::Error> {
+    let username = &event.sender.login;
+    let owner = &event.repository.owner.login;
+    let repo = &event.repository.name;
+
+    let mut touched_files = std::collections::HashSet::new();
+    for commit in &event.commits {
+        for file in &commit.added {
+            touched_files.insert(file.clone());
+        }
+        for file in &commit.modified {
+            touched_files.insert(file.clone());
+        }
+        for file in &commit.removed {
+            touched_files.insert(file.clone());
+        }
+    }
+
+    if touched_files.is_empty() {
+        return Ok(());
+    }
+
+    let files_list: Vec<String> = touched_files.into_iter().collect();
+    let dominant_class = engine::classes::classify_dominant_class(&files_list);
+
+    let Some(class) = dominant_class else {
+        return Ok(());
+    };
+
+    info!("Processing push event for @{}. Dominant class based on pushed files: {:?}", username, class);
+
+    let client = github::client::get_installation_client(inst_id).await?;
+    let (score_content, sha) = github::state::fetch_score_file(&client, owner, repo).await?;
+    let mut stats = github::parser::parse_score_file(&score_content);
+
+    let now = Utc::now();
+    github::state::update_user_stats(&mut stats, username, 0, Some(class), now);
+
+    let new_score_content = github::parser::generate_score_file(&stats);
+    github::state::commit_score_file(&client, owner, repo, &new_score_content, sha.as_deref()).await?;
+
+    info!("Successfully updated class to {:?} for @{} on push event", class, username);
+    Ok(())
 }
