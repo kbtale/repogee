@@ -1,5 +1,7 @@
 use crate::engine::constants::*;
-use crate::types::{ChangedFile, PullRequestEvent};
+use crate::types::{
+    ChangedFile, IssueCommentEvent, IssuesEvent, PullRequestEvent, PullRequestReviewEvent,
+};
 
 fn is_source_file(filename: &str) -> bool {
     let lower = filename.to_lowercase();
@@ -72,4 +74,46 @@ pub fn calculate_pr_xp(
     }
 
     base_xp
+}
+
+pub fn calculate_issue_xp(event: &IssuesEvent) -> u32 {
+    let mut base_xp = 0;
+
+    if event.action == "opened" {
+        let body_len = event.issue.body.as_deref().unwrap_or("").len();
+        if body_len >= 100 {
+            base_xp += XP_OPEN_DETAILED_ISSUE;
+        } else {
+            base_xp += 10;
+        }
+    } else if event.action == "closed" && event.issue.state_reason.as_deref() == Some("completed") {
+        base_xp += XP_CLOSE_ISSUE;
+
+        let has_bug_label = event
+            .issue
+            .labels
+            .iter()
+            .any(|l| l.name.eq_ignore_ascii_case("bug"));
+        if has_bug_label {
+            base_xp += BONUS_SQUASHER;
+        }
+    }
+
+    base_xp
+}
+
+pub fn calculate_review_xp(event: &PullRequestReviewEvent) -> u32 {
+    if event.action == "submitted" && event.review.state == "approved" {
+        XP_SUBMIT_APPROVED_REVIEW
+    } else {
+        0
+    }
+}
+
+pub fn calculate_comment_xp(event: &IssueCommentEvent) -> u32 {
+    if event.action == "created" {
+        XP_COMMENT_ACTIVE_ISSUE
+    } else {
+        0
+    }
 }
