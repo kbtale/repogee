@@ -50,16 +50,31 @@ Repogee assigns each developer a dynamic profile in the format `Class: Subclass`
 ## Feats and XP Modifiers
 
 ### Core Feats
+* **Publish a Production Release**: `+100 XP` (rewards shipping major milestones)
 * **Merge a Pull Request**: `+50 XP`
-* **Open a Pull Request**: `+10 XP`
 * **Close an Issue (Completed)**: `+30 XP`
-* **Open a Detailed Issue** (body >= 100 chars): `+10 XP`
 * **Submit an Approved PR Review**: `+25 XP`
-* **Resolve a Merge Conflict**: `+15 XP`
-* **Link an Issue to a PR**: `+5 XP`
+* **Contribute to Wiki**: `+20 XP` per page created or updated
+* **Open a Pull Request / Issue**: `+10 XP`
+* **Start a Discussion**: `+10 XP`
+* **Answer a Discussion**: `+20 XP` (rewards community support)
+* **Discussion Comment**: `+3 XP`
+* **Submit an Inline PR Review Comment**: `+5 XP` per line comment
+* **Submit a Direct Commit Comment**: `+5 XP`
+* **Take Ownership (Task Assigned)**: `+5 XP` (triggers when assigned to an Issue or PR)
+* **Review Requested**: `+5 XP` (rewards review queue participation)
 * **Add a Comment to an Active Issue**: `+2 XP`
 
 ### Modifiers and Multipliers
+* **The Refactoring Wizard**: `+25 XP` if a merged PR modifies `> 5` files but adds `0` new files (rewards clean code consolidation).
+* **The Precision Strike**: `+20 XP` if a merged PR alters `3` lines or less in total (rewards surgical bug-fixing).
+* **The Colossal Contribution**: `+40 XP` if a merged PR alters `> 500` lines of code.
+* **The Documentation Evangelist**: `+15 XP` if a merged PR consists *entirely* of documentation files (`.md`, `.txt`, `.rst`, `.tex`).
+* **The Quick Merger**: `+15 XP` if a PR is opened and merged in less than `2` hours.
+* **The Epic Issue**: `+20 XP` (instead of 10) if an opened issue contains a detailed description `> 500` characters.
+* **The Direct Committer**: `+10 XP` bonus for pushing commits directly to `main` or `master` branches (Solo Ranger contribution).
+* **The Batch Committer**: `+15 XP` bonus if a push contains a batch of `5` or more distinct commits.
+* **The Thorough Mentor**: `+15 XP` bonus if a reviewer submits a review requesting changes (`changes_requested`) with feedback `> 150` characters.
 * **The Heavy Lifter**: `+20 XP` bonus to a merged PR if added/deleted lines > 150.
 * **The Clean Slate**: `+20 XP` bonus for a merged PR that deletes more lines than it adds.
 * **The Architect**: `+15 XP` bonus if a PR creates new files.
