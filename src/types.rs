@@ -121,6 +121,78 @@ pub struct PushEvent {
     pub installation: Option<Installation>,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct Release {
+    pub tag_name: String,
+    pub name: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ReleaseEvent {
+    pub action: String,
+    pub release: Release,
+    pub repository: Repository,
+    pub sender: User,
+    pub installation: Option<Installation>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct GollumPage {
+    pub page_name: String,
+    pub title: String,
+    pub action: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct GollumEvent {
+    pub pages: Vec<GollumPage>,
+    pub repository: Repository,
+    pub sender: User,
+    pub installation: Option<Installation>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct PullRequestReviewCommentEvent {
+    pub action: String,
+    pub pull_request: PullRequest,
+    pub repository: Repository,
+    pub sender: User,
+    pub installation: Option<Installation>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CommitCommentEvent {
+    pub action: String,
+    pub repository: Repository,
+    pub sender: User,
+    pub installation: Option<Installation>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct Discussion {
+    pub id: u64,
+    pub title: String,
+    pub answer_html_url: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct DiscussionEvent {
+    pub action: String,
+    pub discussion: Discussion,
+    pub repository: Repository,
+    pub sender: User,
+    pub installation: Option<Installation>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct DiscussionCommentEvent {
+    pub action: String,
+    pub discussion: Discussion,
+    pub repository: Repository,
+    pub sender: User,
+    pub installation: Option<Installation>,
+}
+
 #[derive(Debug, Clone)]
 pub enum WebhookEvent {
     PullRequest(PullRequestEvent),
@@ -128,6 +200,12 @@ pub enum WebhookEvent {
     IssueComment(IssueCommentEvent),
     PullRequestReview(PullRequestReviewEvent),
     Push(PushEvent),
+    Release(ReleaseEvent),
+    Gollum(GollumEvent),
+    PullRequestReviewComment(PullRequestReviewCommentEvent),
+    CommitComment(CommitCommentEvent),
+    Discussion(DiscussionEvent),
+    DiscussionComment(DiscussionCommentEvent),
 }
 
 #[derive(Debug, Clone, Deserialize)]
