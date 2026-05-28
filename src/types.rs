@@ -34,6 +34,8 @@ pub struct PullRequest {
     pub deletions: Option<u32>,
     pub user: User,
     pub labels: Vec<Label>,
+    pub created_at: Option<String>,
+    pub merged_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -82,6 +84,7 @@ pub struct IssueCommentEvent {
 pub struct PullRequestReview {
     pub state: String,
     pub user: User,
+    pub body: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
