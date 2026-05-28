@@ -30,6 +30,7 @@ pub const BONUS_DOC_EVANGELIST: u32 = 15;
 pub const BONUS_QUICK_MERGER: u32 = 15;
 pub const BONUS_EPIC_ISSUE: u32 = 20;
 pub const BONUS_THOROUGH_MENTOR: u32 = 15;
-pub const BONUS_COLLABORATOR: u32 = 10;
+pub const BONUS_DIRECT_COMMIT: u32 = 10;
+pub const BONUS_BATCH_COMMIT: u32 = 15;
 
 pub const MULTIPLIER_STREAK: f64 = 0.10;

@@ -17,6 +17,8 @@ use tracing::{error, info, warn};
 use security::VerifiedWebhookPayload;
 use types::{
     IssueCommentEvent, IssuesEvent, PullRequestEvent, PullRequestReviewEvent, PushEvent,
+    ReleaseEvent, GollumEvent, PullRequestReviewCommentEvent, CommitCommentEvent,
+    DiscussionEvent, DiscussionCommentEvent,
 };
 
 #[derive(Clone)]
@@ -48,14 +50,14 @@ fn get_local_changed_files() -> Vec<types::ChangedFile> {
         let parts: Vec<&str> = line.split_whitespace().collect();
         if parts.len() >= 2 {
             let status = match parts[0] {
-                "A" => "added",
-                "D" => "deleted",
-                "M" => "modified",
-                _ => "modified",
+                "A" => "added".to_string(),
+                "M" => "modified".to_string(),
+                "D" => "deleted".to_string(),
+                other => other.to_string(),
             };
             changed.push(types::ChangedFile {
                 filename: parts[1].to_string(),
-                status: status.to_string(),
+                status,
             });
         }
     }
@@ -63,22 +65,23 @@ fn get_local_changed_files() -> Vec<types::ChangedFile> {
 }
 
 async fn run_local_cli() -> Result<(), anyhow::Error> {
-    info!("Running Repogee in local CLI/GitHub Actions mode");
+    info!("Running Repogee in local CLI mode");
 
     let event_name = std::env::var("GITHUB_EVENT_NAME")
-        .map_err(|_| anyhow::anyhow!("GITHUB_EVENT_NAME environment variable is not set"))?;
+        .map_err(|_| anyhow::anyhow!("GITHUB_EVENT_NAME environment variable not set"))?;
     let event_path = std::env::var("GITHUB_EVENT_PATH")
-        .map_err(|_| anyhow::anyhow!("GITHUB_EVENT_PATH environment variable is not set"))?;
+        .map_err(|_| anyhow::anyhow!("GITHUB_EVENT_PATH environment variable not set"))?;
+    let score_path = std::env::var("REPOGEE_SCORE_PATH").unwrap_or_else(|_| "SCORE.md".to_string());
 
     info!("Event Name: {}", event_name);
     info!("Event Path: {}", event_path);
+    info!("Score Path: {}", score_path);
 
     let payload_bytes = std::fs::read(&event_path)
-        .map_err(|e| anyhow::anyhow!("Failed to read event payload at {}: {:?}", event_path, e))?;
+        .map_err(|e| anyhow::anyhow!("Failed to read event payload file: {:?}", e))?;
 
-    let score_path = "SCORE.md";
-    let score_content = if std::path::Path::new(score_path).exists() {
-        std::fs::read_to_string(score_path)
+    let score_content = if std::path::Path::new(&score_path).exists() {
+        std::fs::read_to_string(&score_path)
             .map_err(|e| anyhow::anyhow!("Failed to read SCORE.md: {:?}", e))?
     } else {
         github::parser::get_default_score_file()
@@ -93,7 +96,7 @@ async fn run_local_cli() -> Result<(), anyhow::Error> {
             let is_merged = event.pull_request.merged.unwrap_or(false);
             let username = event.pull_request.user.login.clone();
 
-            if action != "opened" && !(action == "closed" && is_merged) {
+            if action != "opened" && action != "assigned" && action != "review_requested" && !(action == "closed" && is_merged) {
                 info!("PR action '{}' is not tracked for XP, exiting", action);
                 return Ok(());
             }
@@ -128,7 +131,7 @@ async fn run_local_cli() -> Result<(), anyhow::Error> {
             let username = event.sender.login.clone();
             let is_completed = event.issue.state_reason.as_deref() == Some("completed");
 
-            if action != "opened" && !(action == "closed" && is_completed) {
+            if action != "opened" && action != "assigned" && !(action == "closed" && is_completed) {
                 info!("Issue action '{}' not tracked for XP, exiting", action);
                 return Ok(());
             }
@@ -153,8 +156,7 @@ async fn run_local_cli() -> Result<(), anyhow::Error> {
             let event: PullRequestReviewEvent = serde_json::from_slice(&payload_bytes)
                 .map_err(|e| anyhow::anyhow!("Failed to parse PullRequestReviewEvent: {:?}", e))?;
 
-            if event.action != "submitted" || event.review.state != "approved" {
-                info!("PR review action '{}' state '{}' is not tracked for XP, exiting", event.action, event.review.state);
+            if event.action != "submitted" {
                 return Ok(());
             }
 
@@ -188,8 +190,51 @@ async fn run_local_cli() -> Result<(), anyhow::Error> {
 
             let files_list: Vec<String> = touched_files.into_iter().collect();
             let dominant_class = engine::classes::classify_dominant_class(&files_list);
+            let xp_to_add = engine::calculator::calculate_push_xp(&event);
 
-            (username, 0, dominant_class)
+            (username, xp_to_add, dominant_class)
+        }
+        "release" => {
+            let event: ReleaseEvent = serde_json::from_slice(&payload_bytes)
+                .map_err(|e| anyhow::anyhow!("Failed to parse ReleaseEvent: {:?}", e))?;
+            let username = event.sender.login.clone();
+            let xp_to_add = engine::calculator::calculate_release_xp(&event.action);
+            (username, xp_to_add, None)
+        }
+        "gollum" => {
+            let event: GollumEvent = serde_json::from_slice(&payload_bytes)
+                .map_err(|e| anyhow::anyhow!("Failed to parse GollumEvent: {:?}", e))?;
+            let username = event.sender.login.clone();
+            let xp_to_add = engine::calculator::calculate_wiki_xp() * event.pages.len() as u32;
+            (username, xp_to_add, None)
+        }
+        "pull_request_review_comment" => {
+            let event: PullRequestReviewCommentEvent = serde_json::from_slice(&payload_bytes)
+                .map_err(|e| anyhow::anyhow!("Failed to parse PullRequestReviewCommentEvent: {:?}", e))?;
+            let username = event.sender.login.clone();
+            let xp_to_add = engine::calculator::calculate_inline_comment_xp(&event.action);
+            (username, xp_to_add, None)
+        }
+        "commit_comment" => {
+            let event: CommitCommentEvent = serde_json::from_slice(&payload_bytes)
+                .map_err(|e| anyhow::anyhow!("Failed to parse CommitCommentEvent: {:?}", e))?;
+            let username = event.sender.login.clone();
+            let xp_to_add = engine::calculator::calculate_commit_comment_xp(&event.action);
+            (username, xp_to_add, None)
+        }
+        "discussion" => {
+            let event: DiscussionEvent = serde_json::from_slice(&payload_bytes)
+                .map_err(|e| anyhow::anyhow!("Failed to parse DiscussionEvent: {:?}", e))?;
+            let username = event.sender.login.clone();
+            let xp_to_add = engine::calculator::calculate_discussion_xp(&event.action);
+            (username, xp_to_add, None)
+        }
+        "discussion_comment" => {
+            let event: DiscussionCommentEvent = serde_json::from_slice(&payload_bytes)
+                .map_err(|e| anyhow::anyhow!("Failed to parse DiscussionCommentEvent: {:?}", e))?;
+            let username = event.sender.login.clone();
+            let xp_to_add = engine::calculator::calculate_discussion_comment_xp(&event.action);
+            (username, xp_to_add, None)
         }
         unsupported => {
             info!("Received unsupported GitHub event: {}", unsupported);
@@ -219,7 +264,6 @@ async fn main() {
         eprintln!("Warning: Failed to load .env file: {}", e);
     }
 
-
     tracing_subscriber::fmt::init();
 
     let args: Vec<String> = std::env::args().collect();
@@ -235,8 +279,6 @@ async fn main() {
         std::process::exit(0);
     }
 
-
-    // Startup validations
     info!("Validating configuration and private key on startup...");
     let webhook_secret = std::env::var("GITHUB_WEBHOOK_SECRET")
         .expect("GITHUB_WEBHOOK_SECRET environment variable must be set");
@@ -250,23 +292,16 @@ async fn main() {
     };
 
     let app = Router::new()
-        .route("/", get(health_check))
+        .route("/health", get(health_check))
         .route("/webhook", post(handle_webhook))
         .with_state(state);
 
-    let host = std::env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
-    let port_str = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
-    let port: u16 = port_str.parse().expect("PORT must be a valid u16");
-    let addr: SocketAddr = format!("{}:{}", host, port)
-        .parse()
-        .expect("Failed to parse bind address");
+    let port = std::env::var("PORT").unwrap_or_else(|_| "8080".to_string());
+    let addr_str = format!("0.0.0.0:{}", port);
+    let addr: SocketAddr = addr_str.parse().expect("Invalid bind address");
 
-    info!("Starting Repogee server on {}", addr);
-
-    let listener = tokio::net::TcpListener::bind(addr)
-        .await
-        .expect("Failed to bind TCP listener");
-
+    info!("Starting Repogee HTTP server on {}...", addr);
+    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
         .await
@@ -409,6 +444,96 @@ async fn handle_webhook(
                 warn!("Missing installation ID in push event, ignoring");
             }
         }
+        "release" => {
+            let event: ReleaseEvent = serde_json::from_slice(&bytes).map_err(|e| {
+                error!("Failed to parse ReleaseEvent: {:?}", e);
+                (StatusCode::BAD_REQUEST, format!("Invalid payload: {}", e))
+            })?;
+            if let Some(ref inst) = event.installation {
+                let inst_id = inst.id;
+                let state_clone = state.clone();
+                tokio::spawn(async move {
+                    if let Err(e) = process_release_event(state_clone, event, inst_id).await {
+                        error!("Error processing ReleaseEvent: {:?}", e);
+                    }
+                });
+            }
+        }
+        "gollum" => {
+            let event: GollumEvent = serde_json::from_slice(&bytes).map_err(|e| {
+                error!("Failed to parse GollumEvent: {:?}", e);
+                (StatusCode::BAD_REQUEST, format!("Invalid payload: {}", e))
+            })?;
+            if let Some(ref inst) = event.installation {
+                let inst_id = inst.id;
+                let state_clone = state.clone();
+                tokio::spawn(async move {
+                    if let Err(e) = process_gollum_event(state_clone, event, inst_id).await {
+                        error!("Error processing GollumEvent: {:?}", e);
+                    }
+                });
+            }
+        }
+        "pull_request_review_comment" => {
+            let event: PullRequestReviewCommentEvent = serde_json::from_slice(&bytes).map_err(|e| {
+                error!("Failed to parse PullRequestReviewCommentEvent: {:?}", e);
+                (StatusCode::BAD_REQUEST, format!("Invalid payload: {}", e))
+            })?;
+            if let Some(ref inst) = event.installation {
+                let inst_id = inst.id;
+                let state_clone = state.clone();
+                tokio::spawn(async move {
+                    if let Err(e) = process_pr_review_comment_event(state_clone, event, inst_id).await {
+                        error!("Error processing PullRequestReviewCommentEvent: {:?}", e);
+                    }
+                });
+            }
+        }
+        "commit_comment" => {
+            let event: CommitCommentEvent = serde_json::from_slice(&bytes).map_err(|e| {
+                error!("Failed to parse CommitCommentEvent: {:?}", e);
+                (StatusCode::BAD_REQUEST, format!("Invalid payload: {}", e))
+            })?;
+            if let Some(ref inst) = event.installation {
+                let inst_id = inst.id;
+                let state_clone = state.clone();
+                tokio::spawn(async move {
+                    if let Err(e) = process_commit_comment_event(state_clone, event, inst_id).await {
+                        error!("Error processing CommitCommentEvent: {:?}", e);
+                    }
+                });
+            }
+        }
+        "discussion" => {
+            let event: DiscussionEvent = serde_json::from_slice(&bytes).map_err(|e| {
+                error!("Failed to parse DiscussionEvent: {:?}", e);
+                (StatusCode::BAD_REQUEST, format!("Invalid payload: {}", e))
+            })?;
+            if let Some(ref inst) = event.installation {
+                let inst_id = inst.id;
+                let state_clone = state.clone();
+                tokio::spawn(async move {
+                    if let Err(e) = process_discussion_event(state_clone, event, inst_id).await {
+                        error!("Error processing DiscussionEvent: {:?}", e);
+                    }
+                });
+            }
+        }
+        "discussion_comment" => {
+            let event: DiscussionCommentEvent = serde_json::from_slice(&bytes).map_err(|e| {
+                error!("Failed to parse DiscussionCommentEvent: {:?}", e);
+                (StatusCode::BAD_REQUEST, format!("Invalid payload: {}", e))
+            })?;
+            if let Some(ref inst) = event.installation {
+                let inst_id = inst.id;
+                let state_clone = state.clone();
+                tokio::spawn(async move {
+                    if let Err(e) = process_discussion_comment_event(state_clone, event, inst_id).await {
+                        error!("Error processing DiscussionCommentEvent: {:?}", e);
+                    }
+                });
+            }
+        }
         _ => {
             info!("Received unsupported GitHub event: {}", event_name);
             return Ok((StatusCode::ACCEPTED, "Event received but unsupported".to_string()));
@@ -429,7 +554,7 @@ async fn process_pull_request_event(
     let owner = &event.repository.owner.login;
     let repo = &event.repository.name;
 
-    if action != "opened" && !(action == "closed" && is_merged) {
+    if action != "opened" && action != "assigned" && action != "review_requested" && !(action == "closed" && is_merged) {
         info!("PR action '{}' is not tracked for XP, ignoring", action);
         return Ok(());
     }
@@ -479,7 +604,6 @@ async fn process_pull_request_event(
             false
         };
 
-
         let xp_to_add = engine::calculator::calculate_pr_xp(
             &event,
             &changed_files,
@@ -505,7 +629,7 @@ async fn process_issues_event(
     let repo = &event.repository.name;
     let is_completed = event.issue.state_reason.as_deref() == Some("completed");
 
-    if action != "opened" && !(action == "closed" && is_completed) {
+    if action != "opened" && action != "assigned" && !(action == "closed" && is_completed) {
         info!("Issue action '{}' (completed={}) not tracked for XP, ignoring", action, is_completed);
         return Ok(());
     }
@@ -552,7 +676,7 @@ async fn process_pr_review_event(
     event: PullRequestReviewEvent,
     inst_id: u64,
 ) -> Result<(), anyhow::Error> {
-    if event.action != "submitted" || event.review.state != "approved" {
+    if event.action != "submitted" {
         return Ok(());
     }
 
@@ -560,7 +684,7 @@ async fn process_pr_review_event(
     let owner = &event.repository.owner.login;
     let repo = &event.repository.name;
 
-    info!("Processing PR Review approval for user @{}", username);
+    info!("Processing PR Review submission for user @{}", username);
 
     let client = github::client::get_installation_client(&state.app_client, inst_id).await?;
 
@@ -600,19 +724,141 @@ async fn process_push_event(
 
     let files_list: Vec<String> = touched_files.into_iter().collect();
     let dominant_class = engine::classes::classify_dominant_class(&files_list);
+    let xp_to_add = engine::calculator::calculate_push_xp(&event);
 
-    let Some(class) = dominant_class else {
+    if xp_to_add == 0 && dominant_class.is_none() {
         return Ok(());
-    };
+    }
 
-    info!("Processing push event for @{}. Dominant class based on pushed files: {:?}", username, class);
+    info!("Processing push event for @{}. Dominant class based on pushed files: {:?}", username, dominant_class);
 
     let client = github::client::get_installation_client(&state.app_client, inst_id).await?;
 
     github::state::update_leaderboard_with_retry(&client, owner, repo, username, |_stats| {
-        (0, Some(class.clone()))
+        (xp_to_add, dominant_class.clone())
     }).await?;
 
     Ok(())
 }
 
+async fn process_release_event(
+    state: AppState,
+    event: ReleaseEvent,
+    inst_id: u64,
+) -> Result<(), anyhow::Error> {
+    let action = &event.action;
+    if action != "published" {
+        return Ok(());
+    }
+    let username = &event.sender.login;
+    let owner = &event.repository.owner.login;
+    let repo = &event.repository.name;
+    info!("Processing Release published event for @{}", username);
+    let client = github::client::get_installation_client(&state.app_client, inst_id).await?;
+    github::state::update_leaderboard_with_retry(&client, owner, repo, username, |_stats| {
+        let xp_to_add = engine::calculator::calculate_release_xp(action);
+        (xp_to_add, None)
+    }).await?;
+    Ok(())
+}
+
+async fn process_gollum_event(
+    state: AppState,
+    event: GollumEvent,
+    inst_id: u64,
+) -> Result<(), anyhow::Error> {
+    let username = &event.sender.login;
+    let owner = &event.repository.owner.login;
+    let repo = &event.repository.name;
+    info!("Processing Gollum wiki event for @{}", username);
+    let client = github::client::get_installation_client(&state.app_client, inst_id).await?;
+    github::state::update_leaderboard_with_retry(&client, owner, repo, username, |_stats| {
+        let xp_to_add = engine::calculator::calculate_wiki_xp() * event.pages.len() as u32;
+        (xp_to_add, None)
+    }).await?;
+    Ok(())
+}
+
+async fn process_pr_review_comment_event(
+    state: AppState,
+    event: PullRequestReviewCommentEvent,
+    inst_id: u64,
+) -> Result<(), anyhow::Error> {
+    let action = &event.action;
+    if action != "created" {
+        return Ok(());
+    }
+    let username = &event.sender.login;
+    let owner = &event.repository.owner.login;
+    let repo = &event.repository.name;
+    info!("Processing PR review comment created event for @{}", username);
+    let client = github::client::get_installation_client(&state.app_client, inst_id).await?;
+    github::state::update_leaderboard_with_retry(&client, owner, repo, username, |_stats| {
+        let xp_to_add = engine::calculator::calculate_inline_comment_xp(action);
+        (xp_to_add, None)
+    }).await?;
+    Ok(())
+}
+
+async fn process_commit_comment_event(
+    state: AppState,
+    event: CommitCommentEvent,
+    inst_id: u64,
+) -> Result<(), anyhow::Error> {
+    let action = &event.action;
+    if action != "created" {
+        return Ok(());
+    }
+    let username = &event.sender.login;
+    let owner = &event.repository.owner.login;
+    let repo = &event.repository.name;
+    info!("Processing Commit comment created event for @{}", username);
+    let client = github::client::get_installation_client(&state.app_client, inst_id).await?;
+    github::state::update_leaderboard_with_retry(&client, owner, repo, username, |_stats| {
+        let xp_to_add = engine::calculator::calculate_commit_comment_xp(action);
+        (xp_to_add, None)
+    }).await?;
+    Ok(())
+}
+
+async fn process_discussion_event(
+    state: AppState,
+    event: DiscussionEvent,
+    inst_id: u64,
+) -> Result<(), anyhow::Error> {
+    let action = &event.action;
+    if action != "created" && action != "answered" {
+        return Ok(());
+    }
+    let username = &event.sender.login;
+    let owner = &event.repository.owner.login;
+    let repo = &event.repository.name;
+    info!("Processing Discussion action '{}' event for @{}", action, username);
+    let client = github::client::get_installation_client(&state.app_client, inst_id).await?;
+    github::state::update_leaderboard_with_retry(&client, owner, repo, username, |_stats| {
+        let xp_to_add = engine::calculator::calculate_discussion_xp(action);
+        (xp_to_add, None)
+    }).await?;
+    Ok(())
+}
+
+async fn process_discussion_comment_event(
+    state: AppState,
+    event: DiscussionCommentEvent,
+    inst_id: u64,
+) -> Result<(), anyhow::Error> {
+    let action = &event.action;
+    if action != "created" {
+        return Ok(());
+    }
+    let username = &event.sender.login;
+    let owner = &event.repository.owner.login;
+    let repo = &event.repository.name;
+    info!("Processing Discussion comment created event for @{}", username);
+    let client = github::client::get_installation_client(&state.app_client, inst_id).await?;
+    github::state::update_leaderboard_with_retry(&client, owner, repo, username, |_stats| {
+        let xp_to_add = engine::calculator::calculate_discussion_comment_xp(action);
+        (xp_to_add, None)
+    }).await?;
+    Ok(())
+}
