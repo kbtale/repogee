@@ -11,18 +11,18 @@ runs:
           ~/.cargo/registry/cache
           ~/.cargo/registry/index
           ~/.cargo/git/db
-          target
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml') }}
+          ${{ github.action_path }}/target
+        key: ${{ runner.os }}-cargo-${{ hashFiles(format('{0}/Cargo.lock', github.action_path)) }}
         restore-keys: |
           ${{ runner.os }}-cargo-
 
     - name: Build Repogee
       shell: bash
-      run: cargo build --release
+      run: cargo build --release --manifest-path "${{ github.action_path }}/Cargo.toml"
 
     - name: Run Repogee
       shell: bash
-      run: ./target/release/repogee --local
+      run: "${{ github.action_path }}/target/release/repogee" --local
 
     - name: Commit and push changes
       shell: bash
