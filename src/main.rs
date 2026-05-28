@@ -488,7 +488,7 @@ async fn process_pull_request_event(
             streak_active,
         );
         
-        (xp_to_add, dominant_class)
+        (xp_to_add, dominant_class.clone())
     }).await?;
 
     Ok(())
@@ -610,7 +610,7 @@ async fn process_push_event(
     let client = github::client::get_installation_client(&state.app_client, inst_id).await?;
 
     github::state::update_leaderboard_with_retry(&client, owner, repo, username, |_stats| {
-        (0, Some(class))
+        (0, Some(class.clone()))
     }).await?;
 
     Ok(())

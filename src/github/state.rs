@@ -9,7 +9,7 @@ pub fn update_user_stats(
     stats: &mut Vec<UserStats>,
     username: &str,
     xp_to_add: u32,
-    new_class: Option<FuturisticClass>,
+    new_class_profile: Option<(FuturisticClass, String)>,
     last_active_time: DateTime<Utc>,
 ) {
     let normalized = username.trim().trim_start_matches('@').to_string();
@@ -20,8 +20,9 @@ pub fn update_user_stats(
             user.xp += xp_to_add;
             user.level = calculate_level(user.xp);
             user.last_active = Some(last_active_time);
-            if let Some(class) = new_class {
+            if let Some((class, subclass)) = new_class_profile.clone() {
                 user.class = class;
+                user.subclass = subclass;
             }
             found = true;
             break;
@@ -29,11 +30,15 @@ pub fn update_user_stats(
     }
 
     if !found {
-        let class = new_class.unwrap_or(FuturisticClass::NexusArchitect);
+        let (class, subclass) = match new_class_profile {
+            Some((class, subclass)) => (class, subclass),
+            None => (FuturisticClass::BackendDeveloper, "General Developer".to_string()),
+        };
         let level = calculate_level(xp_to_add);
         stats.push(UserStats {
             username: normalized,
             class,
+            subclass,
             level,
             xp: xp_to_add,
             last_active: Some(last_active_time),
@@ -112,7 +117,7 @@ pub async fn update_leaderboard_with_retry<F>(
     mut update_fn: F,
 ) -> Result<(), anyhow::Error>
 where
-    F: FnMut(&[UserStats]) -> (u32, Option<FuturisticClass>),
+    F: FnMut(&[UserStats]) -> (u32, Option<(FuturisticClass, String)>),
 {
     let mut attempts = 0;
     let max_attempts = 5;
@@ -166,8 +171,6 @@ where
                     false
                 };
 
-
-
                 if is_transient {
                     let delay_ms = 100 * (1 << attempts)
                         + (Utc::now().timestamp_nanos_opt().unwrap_or(0) as u64 % 100);
@@ -184,4 +187,3 @@ where
         }
     }
 }
-
