@@ -10,18 +10,42 @@ The best part? Repogee is completely stateless. It reads and writes user statist
 
 ## Class System
 
-A developer's class is determined and updated by analyzing the file extensions within their commit history and pull requests:
+Repogee assigns each developer a dynamic profile in the format `Class: Subclass` calculated automatically from their repository contributions:
 
-| Class | Specialization | File Types |
-| --- | --- | --- |
-| Grid Infiltrator | Scripting & Automation | `.py`, `.sh`, `.bash`, `.zsh` |
-| Nexus Architect | Backend Systems | `.rs`, `.go`, `.java`, `.php`, `.cpp`, `.cs` |
-| Quantum Archivist | Databases & Schemas | `.sql`, `.db`, `.sqlite`, `.prisma` |
-| Protocol Sentinel | Serialization & APIs | `.json`, `.yaml`, `.xml`, `.toml`, `.graphql` |
-| Holo-Sculptor | Frontend & UI / UX | `.html`, `.css`, `.js`, `.ts`, `.tsx`, `.vue` |
-| Void Engineer | DevOps & Infrastructure | `.yml` (workflows), `Dockerfile` |
-| Data Scribe | Documentation | `.md`, `.txt`, `.rst` |
-| Syntax Purifier | Code Formatting & Linting | `.prettierrc`, `.eslintrc` |
+1. **Class**: Determined by the high-level category of files the developer has contributed to the most (e.g., `Systems Engineer`, `Frontend Artisan`, `Bioinformatician`).
+2. **Subclass**: Automatically generated based on the specific file extension the developer used the most within that category, combining the extension's name with the class's thematic role suffix (e.g. `Rust Vanguard`, `TypeScript Sculptor`, `FASTA Sequencer`).
+
+### Supported Classes & Role Suffixes
+
+| Class | Thematic Focus | Role Suffix | Examples |
+| --- | --- | --- | --- |
+| `Systems Engineer` | Silicon Forge | `Vanguard` | `Rust Vanguard`, `C++ Vanguard` |
+| `Compute Architect` | GPU Acceleration | `Accelerator` | `CUDA Accelerator`, `GLSL Accelerator` |
+| `Backend Developer` | Enterprise Code | `Architect` | `Java Architect`, `C# Architect` |
+| `Declarative Mathematician` | Functional Purity | `Purist` | `Haskell Purist`, `Elixir Purist` |
+| `Logic Inquisitor` | Formal Verification | `Inquisitor` | `Prolog Inquisitor`, `Coq Inquisitor` |
+| `Frontend Artisan` | Pixel Artistry | `Sculptor` | `TypeScript Sculptor`, `React Sculptor` |
+| `Style Sculptor` | Visual Aesthetics | `Weaver` | `CSS Weaver`, `Sass Weaver` |
+| `Data Alchemist` | Statistical Sorcery | `Sorcerer` | `Python Sorcerer`, `R Sorcerer` |
+| `Bioinformatician` | Organic Computation | `Sequencer` | `FASTA Sequencer`, `PDB Sequencer` |
+| `Database Administrator` | Data Sovereignty | `Archivist` | `SQL Archivist`, `SQLite Archivist` |
+| `NoSQL Specialist` | Schemaless Void | `Indexer` | `MongoDB Indexer`, `Redis Indexer` |
+| `Protocol Arbiter` | Interface Harmony | `Sentinel` | `GraphQL Sentinel`, `Protobuf Sentinel` |
+| `Codec Keeper` | Data Crypts | `Keeper` | `JSON Keeper`, `YAML Keeper` |
+| `DevOps Engineer` | Automation Void | `Commander` | `Docker Commander`, `Makefile Commander` |
+| `IaC Architect` | Declarative Systems | `Terraformer` | `Terraform Terraformer`, `Nix Terraformer` |
+| `Mobile Developer` | Handheld Horizons | `Operator` | `Android Operator`, `Swift Operator` |
+| `Virtual Architect` | Reality Forging | `Weaver` | `Unity Weaver`, `Godot Weaver` |
+| `3D Designer` | Geometric Space | `Sculptor` | `Blender Sculptor`, `CAD Sculptor` |
+| `Acoustic Designer` | Sonic Synthesis | `Composer` | `VST Composer`, `SuperCollider Composer` |
+| `FPGA Engineer` | Gate Array Logic | `Alchemist` | `Verilog Alchemist`, `VHDL Alchemist` |
+| `PCB Layout Engineer` | Copper Flow | `Circuit Weaver` | `KiCad Circuit Weaver`, `Altium Circuit Weaver` |
+| `Red Team Operator` | Infiltration Tactics | `Infiltrator` | `Wireshark Infiltrator`, `Nmap Infiltrator` |
+| `Blue Team Operator` | Shielding Signatures | `Specter` | `Yara Specter`, `Rules Specter` |
+| `QA Engineer` | Chaos Tamer | `Tester` | `Gherkin Tester`, `Robot Tester` |
+| `Code Sanitarian` | Workspace Sanitation | `Purifier` | `Gitignore Purifier`, `ESLint Purifier` |
+| `Chronicler` | Scribal Archives | `Scribe` | `Markdown Scribe`, `LaTeX Scribe` |
+| `Desktop Configurator` | Desktop Ecosystem | `Integrator` | `Desktop Integrator`, `Registry Integrator` |
 
 ## Feats and XP Modifiers
 
