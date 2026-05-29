@@ -298,6 +298,22 @@ async fn main() {
         client_secret,
     };
 
+    let frontend_url = std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:5173".to_string());
+    
+    let cors = tower_http::cors::CorsLayer::new()
+        .allow_origin(vec![
+            axum::http::HeaderValue::from_static("http://localhost:5173"),
+            frontend_url.parse::<axum::http::HeaderValue>().unwrap(),
+        ])
+        .allow_methods(vec![
+            axum::http::Method::GET,
+            axum::http::Method::POST,
+        ])
+        .allow_headers(vec![
+            axum::http::header::AUTHORIZATION,
+            axum::http::header::CONTENT_TYPE,
+        ]);
+
     let app = Router::new()
         .route("/health", get(health_check))
         .route("/webhook", post(handle_webhook))
@@ -306,7 +322,7 @@ async fn main() {
         .route("/api/leaderboard", get(leaderboard_handler))
         .route("/api/repos", get(repos_handler))
         .route("/api/onboard", post(onboard_handler))
-        .layer(tower_http::cors::CorsLayer::permissive())
+        .layer(cors)
         .with_state(state);
 
     let port = std::env::var("PORT").unwrap_or_else(|_| "8080".to_string());
