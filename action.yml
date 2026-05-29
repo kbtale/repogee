@@ -22,7 +22,7 @@ runs:
 
     - name: Run Repogee
       shell: bash
-      run: "${{ github.action_path }}/target/release/repogee" --local
+      run: '"${{ github.action_path }}/target/release/repogee" --local'
 
     - name: Commit and push changes
       shell: bash
