@@ -4,7 +4,7 @@ mod engine;
 mod github;
 
 use axum::{
-    extract::State,
+    extract::{State, Query},
     http::{HeaderMap, StatusCode},
     routing::{get, post},
     response::IntoResponse,
@@ -25,6 +25,8 @@ use types::{
 pub struct AppState {
     pub webhook_secret: String,
     pub app_client: octocrab::Octocrab,
+    pub client_id: String,
+    pub client_secret: String,
 }
 
 fn get_local_changed_files() -> Vec<types::ChangedFile> {
@@ -286,14 +288,25 @@ async fn main() {
     let app_client = github::client::init_app_client()
         .expect("Failed to initialize Octocrab App client during startup");
 
+    let client_id = std::env::var("GITHUB_CLIENT_ID").unwrap_or_default();
+    let client_secret = std::env::var("GITHUB_CLIENT_SECRET").unwrap_or_default();
+
     let state = AppState {
         webhook_secret,
         app_client,
+        client_id,
+        client_secret,
     };
 
     let app = Router::new()
         .route("/health", get(health_check))
         .route("/webhook", post(handle_webhook))
+        .route("/login", get(login_handler))
+        .route("/callback", get(callback_handler))
+        .route("/api/leaderboard", get(leaderboard_handler))
+        .route("/api/repos", get(repos_handler))
+        .route("/api/onboard", post(onboard_handler))
+        .layer(tower_http::cors::CorsLayer::permissive())
         .with_state(state);
 
     let port = std::env::var("PORT").unwrap_or_else(|_| "8080".to_string());
@@ -306,6 +319,177 @@ async fn main() {
         .with_graceful_shutdown(shutdown_signal())
         .await
         .expect("Server failed to run");
+}
+
+async fn login_handler(State(state): State<AppState>) -> impl IntoResponse {
+    let url = format!(
+        "https://github.com/login/oauth/authorize?client_id={}&scope=repo,read:user,write:repo_hook",
+        state.client_id
+    );
+    axum::response::Redirect::temporary(&url)
+}
+
+#[derive(serde::Deserialize)]
+pub struct CallbackQuery {
+    pub code: String,
+}
+
+#[derive(serde::Serialize)]
+pub struct TokenRequest {
+    pub client_id: String,
+    pub client_secret: String,
+    pub code: String,
+}
+
+#[derive(serde::Deserialize)]
+pub struct AccessTokenResponse {
+    pub access_token: String,
+}
+
+async fn callback_handler(
+    State(state): State<AppState>,
+    Query(query): axum::extract::Query<CallbackQuery>,
+) -> impl IntoResponse {
+    let client = reqwest::Client::new();
+    let res = client
+        .post("https://github.com/login/oauth/access_token")
+        .header("Accept", "application/json")
+        .json(&TokenRequest {
+            client_id: state.client_id.clone(),
+            client_secret: state.client_secret.clone(),
+            code: query.code.clone(),
+        })
+        .send()
+        .await;
+
+    let frontend_url = std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:5173".to_string());
+
+    match res {
+        Ok(response) => {
+            if let Ok(token_res) = response.json::<AccessTokenResponse>().await {
+                axum::response::Redirect::temporary(&format!("{}/?token={}", frontend_url, token_res.access_token))
+            } else {
+                axum::response::Redirect::temporary(&format!("{}/?error=token_parsing_failed", frontend_url))
+            }
+        }
+        Err(_) => axum::response::Redirect::temporary(&format!("{}/?error=auth_failed", frontend_url)),
+    }
+}
+
+async fn leaderboard_handler() -> impl IntoResponse {
+    let score_path = std::env::var("REPOGEE_SCORE_PATH").unwrap_or_else(|_| "SCORE.md".to_string());
+    let score_content = if std::path::Path::new(&score_path).exists() {
+        match std::fs::read_to_string(&score_path) {
+            Ok(content) => content,
+            Err(_) => github::parser::get_default_score_file(),
+        }
+    } else {
+        github::parser::get_default_score_file()
+    };
+    let stats = github::parser::parse_score_file(&score_content);
+    axum::Json(stats)
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct GithubRepoInfo {
+    pub id: u64,
+    pub name: String,
+    pub full_name: String,
+    pub description: Option<String>,
+    pub private: bool,
+    pub onboarded: bool,
+}
+
+async fn repos_handler(
+    headers: HeaderMap,
+) -> Result<impl IntoResponse, (axum::http::StatusCode, String)> {
+    let auth_header = headers
+        .get("Authorization")
+        .and_then(|h| h.to_str().ok())
+        .ok_or_else(|| (axum::http::StatusCode::UNAUTHORIZED, "Missing Authorization header".to_string()))?;
+
+    let token = auth_header
+        .strip_prefix("Bearer ")
+        .ok_or_else(|| (axum::http::StatusCode::BAD_REQUEST, "Invalid Authorization token format".to_string()))?;
+
+    let octo = octocrab::Octocrab::builder()
+        .personal_token(token.to_string())
+        .build()
+        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("Octocrab build failed: {:?}", e)))?;
+
+    let page = octo
+        .current()
+        .list_repos_for_authenticated_user()
+        .type_("owner")
+        .send()
+        .await
+        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch user repos: {:?}", e)))?;
+
+    let score_path = std::env::var("REPOGEE_SCORE_PATH").unwrap_or_else(|_| "SCORE.md".to_string());
+    let score_exists = std::path::Path::new(&score_path).exists();
+
+    let mut repos = Vec::new();
+    for repo in page {
+        let full_name = repo.full_name.unwrap_or_default();
+        let onboarded = if full_name == "kbtale/repogee" {
+            score_exists
+        } else {
+            false
+        };
+
+        repos.push(GithubRepoInfo {
+            id: repo.id.into_inner(),
+            name: repo.name,
+            full_name,
+            description: repo.description,
+            private: repo.r#private.unwrap_or(false),
+            onboarded,
+        });
+    }
+
+    Ok((axum::http::StatusCode::OK, axum::Json(repos)))
+}
+
+#[derive(serde::Deserialize)]
+pub struct OnboardPayload {
+    pub repo_full_name: String,
+}
+
+async fn onboard_handler(
+    headers: HeaderMap,
+    axum::Json(payload): axum::Json<OnboardPayload>,
+) -> Result<impl IntoResponse, (axum::http::StatusCode, String)> {
+    let auth_header = headers
+        .get("Authorization")
+        .and_then(|h| h.to_str().ok())
+        .ok_or_else(|| (axum::http::StatusCode::UNAUTHORIZED, "Missing Authorization header".to_string()))?;
+
+    let token = auth_header
+        .strip_prefix("Bearer ")
+        .ok_or_else(|| (axum::http::StatusCode::BAD_REQUEST, "Invalid Authorization token format".to_string()))?;
+
+    let octo = octocrab::Octocrab::builder()
+        .personal_token(token.to_string())
+        .build()
+        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("Octocrab build failed: {:?}", e)))?;
+
+    let parts: Vec<&str> = payload.repo_full_name.split('/').collect();
+    if parts.len() != 2 {
+        return Err((axum::http::StatusCode::BAD_REQUEST, "Invalid repo_full_name format".to_string()));
+    }
+    let owner = parts[0];
+    let repo = parts[1];
+
+    let default_score = github::parser::get_default_score_file();
+    let content_path = "SCORE.md";
+
+    let _ = octo
+        .repos(owner, repo)
+        .create_file(content_path, "chore: initialize repogee SCORE.md", default_score)
+        .send()
+        .await;
+
+    Ok((axum::http::StatusCode::OK, axum::Json(serde_json::json!({ "status": "success" }))))
 }
 
 async fn health_check() -> &'static str {
