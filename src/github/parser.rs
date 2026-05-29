@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use tracing::info;
 use crate::engine::classes::FuturisticClass;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct UserStats {
     pub username: String,
     pub class: FuturisticClass,
