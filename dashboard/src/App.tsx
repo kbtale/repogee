@@ -17,6 +17,7 @@ export default function App() {
   const [loading, setLoading] = createSignal(false)
   const [user, setUser] = createSignal<{ login: string; avatar_url: string; name: string | null } | null>(null)
   const [repos, setRepos] = createSignal<Repo[]>([])
+  const [selectedRepo, setSelectedRepo] = createSignal<string | null>(null)
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
 
@@ -50,6 +51,12 @@ export default function App() {
         if (!reposRes.ok) throw new Error()
         const reposData = await reposRes.json()
         setRepos(reposData)
+        
+        const activeOnboarded = reposData.find((r: Repo) => r.onboarded)
+        if (activeOnboarded) {
+          setSelectedRepo(activeOnboarded.full_name)
+        }
+
         setView('setup')
       } catch (err) {
         localStorage.removeItem('token')
@@ -83,6 +90,7 @@ export default function App() {
           r.full_name === repoFullName ? { ...r, onboarded: true } : r
         )
       )
+      setSelectedRepo(repoFullName)
     }
   }
 
@@ -90,6 +98,7 @@ export default function App() {
     localStorage.removeItem('token')
     setUser(null)
     setRepos([])
+    setSelectedRepo(null)
     setView('landing')
   }
 
@@ -109,12 +118,17 @@ export default function App() {
           user={user()!}
           repos={repos()}
           onOnboard={handleOnboard}
-          onViewLeaderboard={() => setView('leaderboard')}
+          onViewLeaderboard={(repoFullName) => {
+            setSelectedRepo(repoFullName)
+            setView('leaderboard')
+          }}
           onLogout={handleLogout}
         />
       </Match>
-      <Match when={view() === 'leaderboard' && !loading()}>
+      <Match when={view() === 'leaderboard' && !loading() && user() && selectedRepo()}>
         <LeaderboardView
+          user={user()!}
+          selectedRepo={selectedRepo()!}
           onBack={() => setView('setup')}
           onLogout={handleLogout}
         />

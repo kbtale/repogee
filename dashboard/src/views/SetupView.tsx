@@ -17,7 +17,7 @@ interface SetupViewProps {
   }
   repos: Repo[]
   onOnboard: (repoFullName: string) => Promise<void>
-  onViewLeaderboard: () => void
+  onViewLeaderboard: (repoFullName: string) => void
   onLogout: () => void
 }
 
@@ -128,7 +128,7 @@ export default function SetupView(props: SetupViewProps) {
                 <div>
                   <button
                     disabled={loadingRepo() !== null}
-                    onClick={() => repo.onboarded ? props.onViewLeaderboard() : handleOnboard(repo.full_name)}
+                    onClick={() => repo.onboarded ? props.onViewLeaderboard(repo.full_name) : handleOnboard(repo.full_name)}
                     class={`w-full py-3 px-4 rounded-xl font-montserrat font-semibold text-xs tracking-wider uppercase transition-all duration-200 ${
                       repo.onboarded
                         ? "bg-transparent border border-coral text-coral hover:bg-coral/10"

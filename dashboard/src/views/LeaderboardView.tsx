@@ -19,6 +19,12 @@ interface ActivityEvent {
 }
 
 interface LeaderboardViewProps {
+  user: {
+    login: string
+    avatar_url: string
+    name: string | null
+  }
+  selectedRepo: string
   onBack: () => void
   onLogout: () => void
 }
@@ -26,18 +32,18 @@ interface LeaderboardViewProps {
 export default function LeaderboardView(props: LeaderboardViewProps) {
   const [activeTab, setActiveTab] = createSignal<'leaderboard' | 'analytics' | 'settings'>('leaderboard')
   const [contributors, setContributors] = createSignal<Contributor[]>([])
+  const [events, setEvents] = createSignal<ActivityEvent[]>([])
   const [loading, setLoading] = createSignal(true)
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
 
   const fallbackContributors: Contributor[] = [
-    { username: 'arnold_warner', xp: 2450, level: 24, class: 'SystemsEngineer', subclass: 'Rust Vanguard', last_active: '2026-05-28T10:30:00Z' },
-    { username: 'clara_dev', xp: 1980, level: 19, class: 'FrontendArtisan', subclass: 'Svelte Sculptor', last_active: '2026-05-28T09:15:00Z' },
-    { username: 'dev_wizard', xp: 1720, level: 17, class: 'DataAlchemist', subclass: 'Python Sorcerer', last_active: '2026-05-27T18:45:00Z' },
-    { username: 'automation_bot', xp: 1540, level: 15, class: 'DevOpsEngineer', subclass: 'CI/CD Commander', last_active: '2026-05-28T11:02:00Z' },
+    { username: props.user.login, xp: 120, level: 2, class: 'BackendDeveloper', subclass: 'General Architect', last_active: '2026-05-28T10:30:00Z' },
   ]
 
   onMount(async () => {
+    const token = localStorage.getItem('token')
+    
     try {
       const res = await fetch(`${API_URL}/api/leaderboard`)
       if (!res.ok) throw new Error()
@@ -49,6 +55,29 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
       }
     } catch (err) {
       setContributors(fallbackContributors)
+    }
+
+    try {
+      const commitsRes = await fetch(`https://api.github.com/repos/${props.selectedRepo}/commits?per_page=5`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (commitsRes.ok) {
+        const commits = await commitsRes.json()
+        const mappedEvents: ActivityEvent[] = commits.map((c: any, index: number) => {
+          const commitTime = new Date(c.commit.author.date)
+          return {
+            id: c.sha || String(index),
+            title: c.commit.message.split('\n')[0],
+            contributor: c.author?.login || c.commit.author.name || 'anonymous',
+            xp: 15,
+            time: commitTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            type: 'push' as const,
+          }
+        })
+        setEvents(mappedEvents)
+      }
+    } catch (err) {
+      setEvents([])
     } finally {
       setLoading(false)
     }
@@ -61,12 +90,11 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
     return 'text-blueSlate border-blueSlate/30 bg-blueSlate/10'
   }
 
-  const events: ActivityEvent[] = [
-    { id: '1', title: 'Refactored Rust Webhook Core Engine', contributor: 'arnold_warner', xp: 50, time: '7:12 AM', type: 'push' },
-    { id: '2', title: 'Submitted Approved Pull Request Review', contributor: 'arnold_warner', xp: 25, time: '10:30 AM', type: 'review' },
-    { id: '3', title: 'Opened Detailed Architectural Discussion', contributor: 'clara_dev', xp: 10, time: '1:45 PM', type: 'pr_open' },
-    { id: '4', title: 'Added Multi-Threaded Cache Benchmarks', contributor: 'arnold_warner', xp: 15, time: '6:00 PM', type: 'push' },
-  ]
+  const getActiveUser = () => {
+    const list = contributors()
+    const active = list.find(c => c.username.toLowerCase() === props.user.login.toLowerCase())
+    return active || (list.length > 0 ? list[0] : fallbackContributors[0])
+  }
 
   return (
     <div class="min-h-screen bg-black text-ghostWhite font-hind flex flex-row">
@@ -111,7 +139,9 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
       <div class="flex-1 flex flex-col min-w-0">
         <header class="h-20 border-b border-blueSlate/10 px-8 flex justify-between items-center bg-brandCard/5 sticky top-0 z-40">
           <div>
-            <h1 class="font-montserrat text-2xl font-extrabold tracking-tight">Leaderboard</h1>
+            <h1 class="font-montserrat text-xl md:text-2xl font-extrabold tracking-tight truncate max-w-280px sm:max-w-none">
+              {props.selectedRepo}
+            </h1>
             <p class="text-xs text-glaucous font-molengo">Real-time Contributor RPG Progression</p>
           </div>
 
@@ -130,10 +160,14 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
               <span class="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-coral animate-ping"></span>
             </button>
 
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-3 text-left">
+              <div class="hidden sm:block">
+                <div class="font-montserrat text-sm font-bold text-ghostWhite">{props.user.name || props.user.login}</div>
+                <div class="text-xs text-glaucous font-molengo">Level {getActiveUser().level} {getActiveUser().subclass}</div>
+              </div>
               <img
-                src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=80&fit=crop&q=80"
-                alt="Profile"
+                src={props.user.avatar_url}
+                alt={props.user.login}
                 class="w-10 h-10 rounded-full border border-glaucous/20"
               />
             </div>
@@ -145,7 +179,7 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
           fallback={
             <div class="flex-1 flex flex-col items-center justify-center">
               <span class="animate-spin i-ph-circle-notch-bold text-3xl text-coral mb-3"></span>
-              <p class="text-glaucous font-molengo">Loading leaderboard rankings...</p>
+              <p class="text-glaucous font-molengo">Loading repository analytics...</p>
             </div>
           }
         >
@@ -200,20 +234,20 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
                 </div>
 
                 <div class="flex flex-col gap-4">
-                  <For each={events}>
+                  <For
+                    each={events()}
+                    fallback={
+                      <div class="py-8 text-center border border-dashed border-blueSlate/20 rounded-2xl">
+                        <span class="i-ph-clock-bold text-glaucous text-3xl mb-2 block mx-auto animate-pulse"></span>
+                        <p class="text-glaucous font-molengo text-sm">No recent commits found</p>
+                      </div>
+                    }
+                  >
                     {(event) => (
                       <div class="flex items-center justify-between p-4 bg-brandCard/35 border border-blueSlate/5 rounded-2xl hover:border-blueSlate/20 transition-all duration-200">
                         <div class="flex items-center gap-4 min-w-0">
-                          <div class={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                            event.type === 'push' ? 'bg-glaucous/10 text-glaucous' :
-                            event.type === 'review' ? 'bg-coral/10 text-coral' :
-                            'bg-paleSky/10 text-paleSky'
-                          }`}>
-                            <span class={
-                              event.type === 'push' ? 'i-ph-git-commit-bold text-lg' :
-                              event.type === 'review' ? 'i-ph-shield-check-bold text-lg' :
-                              'i-ph-git-pull-request-bold text-lg'
-                            }></span>
+                          <div class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-glaucous/10 text-glaucous">
+                            <span class="i-ph-git-commit-bold text-lg"></span>
                           </div>
                           <div class="min-w-0">
                             <p class="font-hind text-sm font-semibold text-ghostWhite truncate">{event.title}</p>
