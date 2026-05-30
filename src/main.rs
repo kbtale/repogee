@@ -111,18 +111,17 @@ async fn run_local_cli() -> Result<(), anyhow::Error> {
             let pr_body = event.pull_request.body.as_deref().unwrap_or("");
             let pr_title = event.pull_request.title.as_deref().unwrap_or("");
 
-            let streak_active = stats.iter()
+            let last_active = stats.iter()
                 .find(|u| u.username.eq_ignore_ascii_case(&username))
-                .and_then(|u| u.last_active)
-                .map(|last_active| (Utc::now() - last_active).num_hours() < 72)
-                .unwrap_or(false);
+                .and_then(|u| u.last_active);
+            let streak = engine::calculator::calculate_streak_tier(last_active);
 
             let xp_to_add = engine::calculator::calculate_pr_xp(
                 &event,
                 &changed_files,
                 pr_body,
                 pr_title,
-                streak_active,
+                streak,
             );
 
             (username, xp_to_add, dominant_class)
@@ -139,7 +138,11 @@ async fn run_local_cli() -> Result<(), anyhow::Error> {
                 return Ok(());
             }
 
-            let xp_to_add = engine::calculator::calculate_issue_xp(&event);
+            let last_active = stats.iter()
+                .find(|u| u.username.eq_ignore_ascii_case(&username))
+                .and_then(|u| u.last_active);
+            let streak = engine::calculator::calculate_streak_tier(last_active);
+            let xp_to_add = engine::calculator::calculate_issue_xp(&event, streak);
             (username, xp_to_add, None)
         }
         "issue_comment" => {
@@ -152,7 +155,11 @@ async fn run_local_cli() -> Result<(), anyhow::Error> {
             }
 
             let username = event.comment.user.login.clone();
-            let xp_to_add = engine::calculator::calculate_comment_xp(&event);
+            let last_active = stats.iter()
+                .find(|u| u.username.eq_ignore_ascii_case(&username))
+                .and_then(|u| u.last_active);
+            let streak = engine::calculator::calculate_streak_tier(last_active);
+            let xp_to_add = engine::calculator::calculate_comment_xp(&event, streak);
             (username, xp_to_add, None)
         }
         "pull_request_review" => {
@@ -164,7 +171,11 @@ async fn run_local_cli() -> Result<(), anyhow::Error> {
             }
 
             let username = event.review.user.login.clone();
-            let xp_to_add = engine::calculator::calculate_review_xp(&event);
+            let last_active = stats.iter()
+                .find(|u| u.username.eq_ignore_ascii_case(&username))
+                .and_then(|u| u.last_active);
+            let streak = engine::calculator::calculate_streak_tier(last_active);
+            let xp_to_add = engine::calculator::calculate_review_xp(&event, streak);
             (username, xp_to_add, None)
         }
         "push" => {
@@ -848,21 +859,17 @@ async fn process_pull_request_event(
     let pr_title = event.pull_request.title.as_deref().unwrap_or("");
 
     github::state::update_leaderboard_with_retry(&client, owner, repo, username, |stats| {
-        let streak_active = if action == "closed" && is_merged {
-            stats.iter()
+        let streak = if action == "closed" && is_merged {
+            let last_active = stats.iter()
                 .find(|u| u.username.eq_ignore_ascii_case(username))
-                .and_then(|u| u.last_active)
-                .map(|last_active| {
-                    let diff = Utc::now() - last_active;
-                    let is_active = diff.num_hours() < 72;
-                    if is_active {
-                        info!("Streak bonus active for @{}! (Last merge was {} hours ago)", username, diff.num_hours());
-                    }
-                    is_active
-                })
-                .unwrap_or(false)
+                .and_then(|u| u.last_active);
+            let tier = engine::calculator::calculate_streak_tier(last_active);
+            if tier != engine::calculator::StreakTier::None {
+                info!("Streak bonus active for @{}! (Tier: {:?})", username, tier);
+            }
+            tier
         } else {
-            false
+            engine::calculator::StreakTier::None
         };
 
         let xp_to_add = engine::calculator::calculate_pr_xp(
@@ -870,7 +877,7 @@ async fn process_pull_request_event(
             &changed_files,
             pr_body,
             pr_title,
-            streak_active,
+            streak,
         );
         
         (xp_to_add, dominant_class.clone())
@@ -899,11 +906,14 @@ async fn process_issues_event(
 
     let client = github::client::get_installation_client(&state.app_client, inst_id).await?;
 
-    github::state::update_leaderboard_with_retry(&client, owner, repo, username, |_stats| {
-        let xp_to_add = engine::calculator::calculate_issue_xp(&event);
+    github::state::update_leaderboard_with_retry(&client, owner, repo, username, |stats| {
+        let last_active = stats.iter()
+            .find(|u| u.username.eq_ignore_ascii_case(username))
+            .and_then(|u| u.last_active);
+        let streak = engine::calculator::calculate_streak_tier(last_active);
+        let xp_to_add = engine::calculator::calculate_issue_xp(&event, streak);
         (xp_to_add, None)
     }).await?;
-
     Ok(())
 }
 
@@ -924,11 +934,14 @@ async fn process_issue_comment_event(
 
     let client = github::client::get_installation_client(&state.app_client, inst_id).await?;
 
-    github::state::update_leaderboard_with_retry(&client, owner, repo, username, |_stats| {
-        let xp_to_add = engine::calculator::calculate_comment_xp(&event);
+    github::state::update_leaderboard_with_retry(&client, owner, repo, username, |stats| {
+        let last_active = stats.iter()
+            .find(|u| u.username.eq_ignore_ascii_case(username))
+            .and_then(|u| u.last_active);
+        let streak = engine::calculator::calculate_streak_tier(last_active);
+        let xp_to_add = engine::calculator::calculate_comment_xp(&event, streak);
         (xp_to_add, None)
     }).await?;
-
     Ok(())
 }
 
@@ -949,11 +962,14 @@ async fn process_pr_review_event(
 
     let client = github::client::get_installation_client(&state.app_client, inst_id).await?;
 
-    github::state::update_leaderboard_with_retry(&client, owner, repo, username, |_stats| {
-        let xp_to_add = engine::calculator::calculate_review_xp(&event);
+    github::state::update_leaderboard_with_retry(&client, owner, repo, username, |stats| {
+        let last_active = stats.iter()
+            .find(|u| u.username.eq_ignore_ascii_case(username))
+            .and_then(|u| u.last_active);
+        let streak = engine::calculator::calculate_streak_tier(last_active);
+        let xp_to_add = engine::calculator::calculate_review_xp(&event, streak);
         (xp_to_add, None)
     }).await?;
-
     Ok(())
 }
 
