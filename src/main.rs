@@ -469,20 +469,30 @@ async fn onboard_handler(
         ..octocrab::models::hooks::Hook::default()
     };
 
-    let webhook_created = match octo.repos(owner, repo).create_hook(hook).await {
+    let webhook_status = match octo.repos(owner, repo).create_hook(hook).await {
         Ok(created_hook) => {
             info!("Created webhook in {}/{} (id: {})", owner, repo, created_hook.id);
-            true
+            "created"
         }
         Err(e) => {
-            warn!("Failed to create webhook in {}/{}: {:?}", owner, repo, e);
-            false
+            if let octocrab::Error::GitHub { source, .. } = &e {
+                if source.status_code.as_u16() == 422 {
+                    info!("Webhook already exists in {}/{}", owner, repo);
+                    "already_exists"
+                } else {
+                    warn!("Failed to create webhook in {}/{}: {:?}", owner, repo, e);
+                    "failed"
+                }
+            } else {
+                warn!("Failed to create webhook in {}/{}: {:?}", owner, repo, e);
+                "failed"
+            }
         }
     };
 
     Ok((StatusCode::OK, axum::Json(serde_json::json!({
         "status": "success",
         "score_created": score_created,
-        "webhook_created": webhook_created,
+        "webhook_status": webhook_status,
     }))))
 }
