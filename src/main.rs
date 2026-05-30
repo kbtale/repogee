@@ -2,6 +2,7 @@ mod security;
 mod types;
 mod engine;
 mod github;
+mod badge;
 
 use axum::{
     extract::{State, Query},
@@ -337,6 +338,7 @@ async fn main() {
         .route("/api/leaderboard", get(leaderboard_handler))
         .route("/api/repos", get(repos_handler))
         .route("/api/onboard", post(onboard_handler))
+        .route("/api/badge/:username", get(badge_handler))
         .layer(cors)
         .with_state(state);
 
@@ -1138,4 +1140,36 @@ async fn process_discussion_comment_event(
         (xp_to_add, None)
     }).await?;
     Ok(())
+}
+
+async fn badge_handler(
+    axum::extract::Path(username): axum::extract::Path<String>,
+) -> impl IntoResponse {
+    let score_path = std::env::var("REPOGEE_SCORE_PATH").unwrap_or_else(|_| "SCORE.md".to_string());
+    let score_content = if std::path::Path::new(&score_path).exists() {
+        match std::fs::read_to_string(&score_path) {
+            Ok(content) => content,
+            Err(_) => github::parser::get_default_score_file(),
+        }
+    } else {
+        github::parser::get_default_score_file()
+    };
+
+    let stats = github::parser::parse_score_file(&score_content);
+    let normalized = username.trim_start_matches('@');
+
+    let user = stats.iter().find(|u| u.username.eq_ignore_ascii_case(normalized));
+
+    let svg = match user {
+        Some(u) => badge::generate_badge_svg(u.level, u.class.as_str()),
+        None => badge::generate_badge_svg(0, "Not Found"),
+    };
+
+    (
+        [
+            (axum::http::header::CONTENT_TYPE, "image/svg+xml"),
+            (axum::http::header::CACHE_CONTROL, "max-age=300"),
+        ],
+        svg,
+    )
 }
