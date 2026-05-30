@@ -405,7 +405,10 @@ async fn badge_handler(
     };
 
     (
-        [(axum::http::header::CONTENT_TYPE, "image/svg+xml")],
+        [
+            (axum::http::header::CONTENT_TYPE, "image/svg+xml"),
+            (axum::http::header::CACHE_CONTROL, "max-age=300"),
+        ],
         svg,
     )
 }
