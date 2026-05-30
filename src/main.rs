@@ -447,8 +447,42 @@ async fn onboard_handler(
         }
     };
 
+    let webhook_url = format!("{}/webhook", state.base_url);
+    let hook_config = octocrab::models::hooks::Config {
+        url: webhook_url.clone(),
+        content_type: Some(octocrab::models::hooks::ContentType::Json),
+        insecure_ssl: None,
+        secret: Some(state.webhook_secret.clone()),
+    };
+
+    let hook = octocrab::models::hooks::Hook {
+        name: "web".to_string(),
+        active: true,
+        events: vec![
+            octocrab::models::webhook_events::WebhookEventType::PullRequest,
+            octocrab::models::webhook_events::WebhookEventType::Issues,
+            octocrab::models::webhook_events::WebhookEventType::IssueComment,
+            octocrab::models::webhook_events::WebhookEventType::PullRequestReview,
+            octocrab::models::webhook_events::WebhookEventType::Push,
+        ],
+        config: hook_config,
+        ..octocrab::models::hooks::Hook::default()
+    };
+
+    let webhook_created = match octo.repos(owner, repo).create_hook(hook).await {
+        Ok(created_hook) => {
+            info!("Created webhook in {}/{} (id: {})", owner, repo, created_hook.id);
+            true
+        }
+        Err(e) => {
+            warn!("Failed to create webhook in {}/{}: {:?}", owner, repo, e);
+            false
+        }
+    };
+
     Ok((StatusCode::OK, axum::Json(serde_json::json!({
         "status": "success",
         "score_created": score_created,
+        "webhook_created": webhook_created,
     }))))
 }
