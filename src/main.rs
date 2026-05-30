@@ -4,6 +4,7 @@ mod engine;
 mod github;
 
 use axum::{
+    extract::State,
     http::{HeaderMap, StatusCode},
     routing::{get, post},
     response::IntoResponse,
@@ -18,6 +19,12 @@ use types::{
     IssueCommentEvent, IssuesEvent, PullRequestEvent, PullRequestReviewEvent, PushEvent,
 };
 
+#[derive(Clone)]
+pub struct AppState {
+    pub webhook_secret: String,
+    pub base_url: String,
+}
+
 #[tokio::main]
 async fn main() {
     if let Err(e) = dotenvy::dotenv() {
@@ -26,9 +33,21 @@ async fn main() {
 
     tracing_subscriber::fmt::init();
 
+    let webhook_secret = std::env::var("GITHUB_WEBHOOK_SECRET")
+        .expect("GITHUB_WEBHOOK_SECRET must be set");
+    let base_url = std::env::var("BASE_URL")
+        .expect("BASE_URL must be set");
+
+    let state = AppState {
+        webhook_secret,
+        base_url,
+    };
+
     let app = Router::new()
         .route("/", get(health_check))
-        .route("/webhook", post(handle_webhook));
+        .route("/webhook", post(handle_webhook))
+        .route("/api/onboard", post(onboard_handler))
+        .with_state(state);
 
     let host = std::env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
     let port_str = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
@@ -377,4 +396,59 @@ async fn process_push_event(event: PushEvent, inst_id: u64) -> Result<(), anyhow
 
     info!("Successfully updated class to {:?} for @{} on push event", class, username);
     Ok(())
+}
+
+#[derive(serde::Deserialize)]
+pub struct OnboardPayload {
+    pub repo_full_name: String,
+}
+
+async fn onboard_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    axum::Json(payload): axum::Json<OnboardPayload>,
+) -> Result<impl IntoResponse, (StatusCode, String)> {
+    let auth_header = headers
+        .get("Authorization")
+        .and_then(|h| h.to_str().ok())
+        .ok_or_else(|| (StatusCode::UNAUTHORIZED, "Missing Authorization header".to_string()))?;
+
+    let token = auth_header
+        .strip_prefix("Bearer ")
+        .ok_or_else(|| (StatusCode::BAD_REQUEST, "Invalid Authorization token format".to_string()))?;
+
+    let octo = octocrab::Octocrab::builder()
+        .personal_token(token.to_string())
+        .build()
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to build GitHub client: {:?}", e)))?;
+
+    let parts: Vec<&str> = payload.repo_full_name.split('/').collect();
+    if parts.len() != 2 {
+        return Err((StatusCode::BAD_REQUEST, "Invalid repo_full_name format".to_string()));
+    }
+    let owner = parts[0];
+    let repo = parts[1];
+
+    let default_score = github::parser::get_default_score_file();
+    let score_result = octo
+        .repos(owner, repo)
+        .create_file("SCORE.md", "chore: initialize repogee SCORE.md", default_score)
+        .send()
+        .await;
+
+    let score_created = match score_result {
+        Ok(_) => {
+            info!("Created SCORE.md in {}/{}", owner, repo);
+            true
+        }
+        Err(e) => {
+            warn!("Failed to create SCORE.md in {}/{}: {:?}", owner, repo, e);
+            false
+        }
+    };
+
+    Ok((StatusCode::OK, axum::Json(serde_json::json!({
+        "status": "success",
+        "score_created": score_created,
+    }))))
 }
