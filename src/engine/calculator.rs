@@ -1,4 +1,5 @@
 use crate::engine::constants::*;
+use crate::types::{ChangedFile, IssueCommentEvent, IssuesEvent, PullRequestEvent, PullRequestReviewEvent, PushEvent};
 use chrono::{DateTime, Utc};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -40,7 +41,6 @@ fn apply_streak_multiplier(base_xp: u32, streak: StreakTier) -> u32 {
     }
     base_xp + ((base_xp as f64) * streak.multiplier()).round() as u32
 }
-use crate::types::{ChangedFile, IssueCommentEvent, IssuesEvent, PullRequestEvent, PullRequestReviewEvent, PushEvent};
 
 pub fn calculate_level(total_xp: u32) -> u32 {
     if total_xp == 0 {
