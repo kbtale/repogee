@@ -1,5 +1,46 @@
 use crate::engine::constants::*;
-use crate::types::{ChangedFile, IssueCommentEvent, IssuesEvent, PullRequestEvent, PullRequestReviewEvent};
+use crate::types::{ChangedFile, IssueCommentEvent, IssuesEvent, PullRequestEvent, PullRequestReviewEvent, PushEvent};
+use chrono::{DateTime, Utc};
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum StreakTier {
+    None,
+    Tier1,
+    Tier2,
+}
+
+impl StreakTier {
+    pub fn multiplier(&self) -> f64 {
+        match self {
+            StreakTier::None => 0.0,
+            StreakTier::Tier1 => STREAK_TIER_1_MULTIPLIER,
+            StreakTier::Tier2 => STREAK_TIER_2_MULTIPLIER,
+        }
+    }
+}
+
+pub fn calculate_streak_tier(last_active: Option<DateTime<Utc>>) -> StreakTier {
+    let Some(last_active) = last_active else {
+        return StreakTier::None;
+    };
+
+    let hours = (Utc::now() - last_active).num_hours();
+
+    if hours < STREAK_TIER_1_HOURS {
+        StreakTier::Tier1
+    } else if hours < STREAK_TIER_2_HOURS {
+        StreakTier::Tier2
+    } else {
+        StreakTier::None
+    }
+}
+
+fn apply_streak_multiplier(base_xp: u32, streak: StreakTier) -> u32 {
+    if base_xp == 0 || streak == StreakTier::None {
+        return base_xp;
+    }
+    base_xp + ((base_xp as f64) * streak.multiplier()).round() as u32
+}
 
 pub fn calculate_level(total_xp: u32) -> u32 {
     if total_xp == 0 {
@@ -10,7 +51,8 @@ pub fn calculate_level(total_xp: u32) -> u32 {
 
 fn is_source_file(filename: &str) -> bool {
     let lower = filename.to_lowercase();
-    let ext = lower.split('.').last().unwrap_or("");
+    let ext = lower.split('.').next_back().unwrap_or("");
+
     matches!(
         ext,
         "rs" | "py"
@@ -52,7 +94,7 @@ fn is_source_file(filename: &str) -> bool {
 
 fn is_doc_config_file(filename: &str) -> bool {
     let lower = filename.to_lowercase();
-    let ext = lower.split('.').last().unwrap_or("");
+    let ext = lower.split('.').next_back().unwrap_or("");
     matches!(ext, "json" | "yaml" | "yml" | "toml" | "xml" | "md" | "txt")
 }
 
@@ -61,12 +103,16 @@ pub fn calculate_pr_xp(
     changed_files: &[ChangedFile],
     pr_body: &str,
     pr_title: &str,
-    streak_active: bool,
+    streak: StreakTier,
 ) -> u32 {
     let mut base_xp = 0;
 
     if event.action == "opened" {
         base_xp += XP_OPEN_PR;
+    } else if event.action == "assigned" {
+        base_xp += XP_TASK_ASSIGNED;
+    } else if event.action == "review_requested" {
+        base_xp += XP_REVIEW_REQUESTED;
     } else if event.action == "closed" && event.pull_request.merged.unwrap_or(false) {
         base_xp += XP_MERGE_PR;
 
@@ -104,25 +150,57 @@ pub fn calculate_pr_xp(
         {
             base_xp += XP_LINK_ISSUE_TO_PR;
         }
+
+        let refactor_wizard = changed_files.len() > 5 && !changed_files.iter().any(|f| f.status == "added");
+        if refactor_wizard {
+            base_xp += BONUS_REFACTORING_WIZARD;
+        }
+
+        if additions + deletions <= 3 && additions + deletions > 0 {
+            base_xp += BONUS_PRECISION_STRIKE;
+        }
+
+        if additions + deletions > 500 {
+            base_xp += BONUS_COLOSSAL_CONTRIBUTION;
+        }
+
+        let doc_evangelist = changed_files.iter().all(|f| is_doc_config_file(&f.filename)) && !changed_files.is_empty();
+        if doc_evangelist {
+            base_xp += BONUS_DOC_EVANGELIST;
+        }
+
+        let quick_merger = match (&event.pull_request.created_at, &event.pull_request.merged_at) {
+            (Some(c), Some(m)) => {
+                if let (Ok(c_dt), Ok(m_dt)) = (chrono::DateTime::parse_from_rfc3339(c), chrono::DateTime::parse_from_rfc3339(m)) {
+                    (m_dt - c_dt).num_hours() < 2
+                } else {
+                    false
+                }
+            }
+            _ => false,
+        };
+        if quick_merger {
+            base_xp += BONUS_QUICK_MERGER;
+        }
     }
 
-    if base_xp > 0 && streak_active {
-        base_xp += ((base_xp as f64) * MULTIPLIER_STREAK).round() as u32;
-    }
-
-    base_xp
+    apply_streak_multiplier(base_xp, streak)
 }
 
-pub fn calculate_issue_xp(event: &IssuesEvent) -> u32 {
+pub fn calculate_issue_xp(event: &IssuesEvent, streak: StreakTier) -> u32 {
     let mut base_xp = 0;
 
     if event.action == "opened" {
         let body_len = event.issue.body.as_deref().unwrap_or("").len();
-        if body_len >= 100 {
+        if body_len > 500 {
+            base_xp += BONUS_EPIC_ISSUE;
+        } else if body_len >= 100 {
             base_xp += XP_OPEN_DETAILED_ISSUE;
         } else {
             base_xp += 10;
         }
+    } else if event.action == "assigned" {
+        base_xp += XP_TASK_ASSIGNED;
     } else if event.action == "closed" && event.issue.state_reason.as_deref() == Some("completed") {
         base_xp += XP_CLOSE_ISSUE;
 
@@ -136,21 +214,86 @@ pub fn calculate_issue_xp(event: &IssuesEvent) -> u32 {
         }
     }
 
-    base_xp
+    apply_streak_multiplier(base_xp, streak)
 }
 
-pub fn calculate_review_xp(event: &PullRequestReviewEvent) -> u32 {
-    if event.action == "submitted" && event.review.state == "approved" {
-        XP_SUBMIT_APPROVED_REVIEW
-    } else {
-        0
+pub fn calculate_review_xp(event: &PullRequestReviewEvent, streak: StreakTier) -> u32 {
+    let mut base_xp = 0;
+    if event.action == "submitted" {
+        if event.review.state == "approved" {
+            base_xp += XP_SUBMIT_APPROVED_REVIEW;
+        } else if event.review.state == "changes_requested" {
+            let body_len = event.review.body.as_deref().unwrap_or("").len();
+            if body_len > 150 {
+                base_xp += BONUS_THOROUGH_MENTOR;
+            }
+        }
     }
+    apply_streak_multiplier(base_xp, streak)
 }
 
-pub fn calculate_comment_xp(event: &IssueCommentEvent) -> u32 {
-    if event.action == "created" {
+pub fn calculate_comment_xp(event: &IssueCommentEvent, streak: StreakTier) -> u32 {
+    let base_xp = if event.action == "created" {
         XP_COMMENT_ACTIVE_ISSUE
     } else {
         0
+    };
+    apply_streak_multiplier(base_xp, streak)
+}
+
+pub fn calculate_wiki_xp() -> u32 {
+    XP_WIKI_UPDATE
+}
+
+pub fn calculate_release_xp(action: &str) -> u32 {
+    if action == "published" {
+        XP_PUBLISH_RELEASE
+    } else {
+        0
     }
+}
+
+pub fn calculate_discussion_xp(action: &str) -> u32 {
+    if action == "created" {
+        XP_START_DISCUSSION
+    } else if action == "answered" {
+        XP_ANSWER_DISCUSSION
+    } else {
+        0
+    }
+}
+
+pub fn calculate_discussion_comment_xp(action: &str) -> u32 {
+    if action == "created" {
+        XP_COMMENT_DISCUSSION
+    } else {
+        0
+    }
+}
+
+pub fn calculate_inline_comment_xp(action: &str) -> u32 {
+    if action == "created" {
+        XP_INLINE_REVIEW_COMMENT
+    } else {
+        0
+    }
+}
+
+pub fn calculate_commit_comment_xp(action: &str) -> u32 {
+    if action == "created" {
+        XP_COMMIT_COMMENT
+    } else {
+        0
+    }
+}
+
+pub fn calculate_push_xp(event: &PushEvent) -> u32 {
+    let mut base_xp = 0;
+    if event.ref_field == "refs/heads/main" || event.ref_field == "refs/heads/master" {
+        base_xp += BONUS_DIRECT_COMMIT;
+    }
+    if event.commits.len() >= 5 {
+        base_xp += BONUS_BATCH_COMMIT;
+    }
+    base_xp
 }

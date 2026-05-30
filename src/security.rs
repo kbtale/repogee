@@ -27,13 +27,10 @@ pub fn verify_signature(secret: &str, signature_header: &str, body: &[u8]) -> Re
 
 pub struct VerifiedWebhookPayload(pub Bytes);
 
-impl<S> FromRequest<S> for VerifiedWebhookPayload
-where
-    S: Send + Sync,
-{
+impl FromRequest<crate::AppState> for VerifiedWebhookPayload {
     type Rejection = (StatusCode, String);
 
-    async fn from_request(req: Request<axum::body::Body>, state: &S) -> Result<Self, Self::Rejection> {
+    async fn from_request(req: Request<axum::body::Body>, state: &crate::AppState) -> Result<Self, Self::Rejection> {
         let (parts, body) = req.into_parts();
 
         let signature = parts
@@ -46,11 +43,6 @@ where
                 (StatusCode::UNAUTHORIZED, "Missing x-hub-signature-256 header".to_string())
             })?;
 
-        let secret = std::env::var("GITHUB_WEBHOOK_SECRET").map_err(|_| {
-            error!("GITHUB_WEBHOOK_SECRET environment variable is not set");
-            (StatusCode::INTERNAL_SERVER_ERROR, "Server configuration error".to_string())
-        })?;
-
         let bytes = Bytes::from_request(Request::from_parts(parts, body), state)
             .await
             .map_err(|e| {
@@ -58,7 +50,7 @@ where
                 (StatusCode::BAD_REQUEST, "Failed to read request body".to_string())
             })?;
 
-        verify_signature(&secret, &signature, &bytes).map_err(|err| {
+        verify_signature(&state.webhook_secret, &signature, &bytes).map_err(|err| {
             warn!("Webhook verification failed: {}", err);
             (StatusCode::UNAUTHORIZED, format!("Invalid signature: {}", err))
         })?;
@@ -66,3 +58,4 @@ where
         Ok(VerifiedWebhookPayload(bytes))
     }
 }
+
