@@ -27,6 +27,7 @@ pub struct AppState {
     pub app_client: octocrab::Octocrab,
     pub client_id: String,
     pub client_secret: String,
+    pub base_url: String,
 }
 
 fn get_local_changed_files() -> Vec<types::ChangedFile> {
@@ -290,12 +291,15 @@ async fn main() {
 
     let client_id = std::env::var("GITHUB_CLIENT_ID").unwrap_or_default();
     let client_secret = std::env::var("GITHUB_CLIENT_SECRET").unwrap_or_default();
+    let base_url = std::env::var("BASE_URL")
+        .expect("BASE_URL must be set");
 
     let state = AppState {
         webhook_secret,
         app_client,
         client_id,
         client_secret,
+        base_url,
     };
 
     let frontend_url = std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:5173".to_string());
@@ -472,40 +476,97 @@ pub struct OnboardPayload {
 }
 
 async fn onboard_handler(
+    State(state): State<AppState>,
     headers: HeaderMap,
     axum::Json(payload): axum::Json<OnboardPayload>,
-) -> Result<impl IntoResponse, (axum::http::StatusCode, String)> {
+) -> Result<impl IntoResponse, (StatusCode, String)> {
     let auth_header = headers
         .get("Authorization")
         .and_then(|h| h.to_str().ok())
-        .ok_or_else(|| (axum::http::StatusCode::UNAUTHORIZED, "Missing Authorization header".to_string()))?;
+        .ok_or_else(|| (StatusCode::UNAUTHORIZED, "Missing Authorization header".to_string()))?;
 
     let token = auth_header
         .strip_prefix("Bearer ")
-        .ok_or_else(|| (axum::http::StatusCode::BAD_REQUEST, "Invalid Authorization token format".to_string()))?;
+        .ok_or_else(|| (StatusCode::BAD_REQUEST, "Invalid Authorization token format".to_string()))?;
 
     let octo = octocrab::Octocrab::builder()
         .personal_token(token.to_string())
         .build()
-        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("Octocrab build failed: {:?}", e)))?;
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to build GitHub client: {:?}", e)))?;
 
     let parts: Vec<&str> = payload.repo_full_name.split('/').collect();
     if parts.len() != 2 {
-        return Err((axum::http::StatusCode::BAD_REQUEST, "Invalid repo_full_name format".to_string()));
+        return Err((StatusCode::BAD_REQUEST, "Invalid repo_full_name format".to_string()));
     }
     let owner = parts[0];
     let repo = parts[1];
 
     let default_score = github::parser::get_default_score_file();
-    let content_path = "SCORE.md";
-
-    let _ = octo
+    let score_result = octo
         .repos(owner, repo)
-        .create_file(content_path, "chore: initialize repogee SCORE.md", default_score)
+        .create_file("SCORE.md", "chore: initialize repogee SCORE.md", default_score)
         .send()
         .await;
 
-    Ok((axum::http::StatusCode::OK, axum::Json(serde_json::json!({ "status": "success" }))))
+    let score_created = match score_result {
+        Ok(_) => {
+            info!("Created SCORE.md in {}/{}", owner, repo);
+            true
+        }
+        Err(e) => {
+            warn!("Failed to create SCORE.md in {}/{}: {:?}", owner, repo, e);
+            false
+        }
+    };
+
+    let webhook_url = format!("{}/webhook", state.base_url);
+    let hook_config = octocrab::models::hooks::Config {
+        url: webhook_url.clone(),
+        content_type: Some(octocrab::models::hooks::ContentType::Json),
+        insecure_ssl: None,
+        secret: Some(state.webhook_secret.clone()),
+    };
+
+    let hook = octocrab::models::hooks::Hook {
+        name: "web".to_string(),
+        active: true,
+        events: vec![
+            octocrab::models::webhook_events::WebhookEventType::PullRequest,
+            octocrab::models::webhook_events::WebhookEventType::Issues,
+            octocrab::models::webhook_events::WebhookEventType::IssueComment,
+            octocrab::models::webhook_events::WebhookEventType::PullRequestReview,
+            octocrab::models::webhook_events::WebhookEventType::Push,
+        ],
+        config: hook_config,
+        ..octocrab::models::hooks::Hook::default()
+    };
+
+    let webhook_status = match octo.repos(owner, repo).create_hook(hook).await {
+        Ok(created_hook) => {
+            info!("Created webhook in {}/{} (id: {})", owner, repo, created_hook.id);
+            "created"
+        }
+        Err(e) => {
+            if let octocrab::Error::GitHub { source, .. } = &e {
+                if source.status_code.as_u16() == 422 {
+                    info!("Webhook already exists in {}/{}", owner, repo);
+                    "already_exists"
+                } else {
+                    warn!("Failed to create webhook in {}/{}: {:?}", owner, repo, e);
+                    "failed"
+                }
+            } else {
+                warn!("Failed to create webhook in {}/{}: {:?}", owner, repo, e);
+                "failed"
+            }
+        }
+    };
+
+    Ok((StatusCode::OK, axum::Json(serde_json::json!({
+        "status": "success",
+        "score_created": score_created,
+        "webhook_status": webhook_status,
+    }))))
 }
 
 async fn health_check() -> &'static str {
