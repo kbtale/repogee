@@ -7,6 +7,16 @@ pub const XP_RESOLVE_MERGE_CONFLICT: u32 = 15;
 pub const XP_LINK_ISSUE_TO_PR: u32 = 5;
 pub const XP_COMMENT_ACTIVE_ISSUE: u32 = 2;
 
+pub const XP_PUBLISH_RELEASE: u32 = 100;
+pub const XP_WIKI_UPDATE: u32 = 20;
+pub const XP_INLINE_REVIEW_COMMENT: u32 = 5;
+pub const XP_COMMIT_COMMENT: u32 = 5;
+pub const XP_START_DISCUSSION: u32 = 10;
+pub const XP_ANSWER_DISCUSSION: u32 = 20;
+pub const XP_COMMENT_DISCUSSION: u32 = 3;
+pub const XP_TASK_ASSIGNED: u32 = 5;
+pub const XP_REVIEW_REQUESTED: u32 = 5;
+
 pub const BONUS_HEAVY_LIFTER: u32 = 20;
 pub const BONUS_SQUASHER: u32 = 15;
 pub const BONUS_PROTOCOL: u32 = 10;
@@ -17,3 +27,14 @@ pub const STREAK_TIER_1_HOURS: i64 = 24;
 pub const STREAK_TIER_2_HOURS: i64 = 48;
 pub const STREAK_TIER_1_MULTIPLIER: f64 = 0.05;
 pub const STREAK_TIER_2_MULTIPLIER: f64 = 0.15;
+pub const BONUS_REFACTORING_WIZARD: u32 = 25;
+pub const BONUS_PRECISION_STRIKE: u32 = 20;
+pub const BONUS_COLOSSAL_CONTRIBUTION: u32 = 40;
+pub const BONUS_DOC_EVANGELIST: u32 = 15;
+pub const BONUS_QUICK_MERGER: u32 = 15;
+pub const BONUS_EPIC_ISSUE: u32 = 20;
+pub const BONUS_THOROUGH_MENTOR: u32 = 15;
+pub const BONUS_DIRECT_COMMIT: u32 = 10;
+pub const BONUS_BATCH_COMMIT: u32 = 15;
+
+pub const MULTIPLIER_STREAK: f64 = 0.10;

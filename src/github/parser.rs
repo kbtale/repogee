@@ -2,10 +2,11 @@ use chrono::{DateTime, Utc};
 use tracing::info;
 use crate::engine::classes::FuturisticClass;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct UserStats {
     pub username: String,
     pub class: FuturisticClass,
+    pub subclass: String,
     pub level: u32,
     pub xp: u32,
     pub last_active: Option<DateTime<Utc>>,
@@ -35,13 +36,23 @@ pub fn parse_score_file(content: &str) -> Vec<UserStats> {
                 continue;
             }
 
-            let username = if username_raw.starts_with('@') {
-                username_raw[1..].to_string()
-            } else {
-                username_raw.to_string()
-            };
+            let username = username_raw.strip_prefix('@').unwrap_or(username_raw).to_string();
 
-            let class = FuturisticClass::from_str(class_raw).unwrap_or(FuturisticClass::NexusArchitect);
+            let mut class = FuturisticClass::BackendDeveloper;
+            let mut subclass = "General Developer".to_string();
+
+            if class_raw.contains(':') {
+                let bits: Vec<&str> = class_raw.split(':').map(|s| s.trim()).collect();
+                if let Some(c) = FuturisticClass::from_str(bits[0]) {
+                    class = c;
+                }
+                if bits.len() > 1 {
+                    subclass = bits[1].to_string();
+                }
+            } else if let Some(c) = FuturisticClass::from_str(class_raw) {
+                class = c;
+                subclass = format!("General {}", c.role_suffix());
+            }
 
             let level = level_raw.parse::<u32>().unwrap_or(0);
             let xp = xp_raw.parse::<u32>().unwrap_or(0);
@@ -57,6 +68,7 @@ pub fn parse_score_file(content: &str) -> Vec<UserStats> {
             stats.push(UserStats {
                 username,
                 class,
+                subclass,
                 level,
                 xp,
                 last_active,
@@ -84,9 +96,10 @@ pub fn generate_score_file(stats: &[UserStats]) -> String {
         };
 
         md.push_str(&format!(
-            "| @{} | {} | {} | {} | {} |\n",
+            "| @{} | {}: {} | {} | {} | {} |\n",
             user.username,
             user.class.as_str(),
+            user.subclass,
             user.level,
             user.xp,
             last_active_str
