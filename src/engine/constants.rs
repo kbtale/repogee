@@ -13,4 +13,7 @@ pub const BONUS_PROTOCOL: u32 = 10;
 pub const BONUS_ARCHITECT: u32 = 15;
 pub const BONUS_CLEAN_SLATE: u32 = 20;
 
-pub const MULTIPLIER_STREAK: f64 = 0.10;
+pub const STREAK_TIER_1_HOURS: i64 = 24;
+pub const STREAK_TIER_2_HOURS: i64 = 48;
+pub const STREAK_TIER_1_MULTIPLIER: f64 = 0.05;
+pub const STREAK_TIER_2_MULTIPLIER: f64 = 0.15;

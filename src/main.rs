@@ -200,18 +200,18 @@ async fn process_pull_request_event(event: PullRequestEvent, inst_id: u64) -> Re
     let (score_content, sha) = github::state::fetch_score_file(&client, owner, repo).await?;
     let mut stats = github::parser::parse_score_file(&score_content);
 
-    let mut streak_active = false;
-    if action == "closed" && is_merged {
-        if let Some(user) = stats.iter().find(|u| u.username.eq_ignore_ascii_case(username)) {
-            if let Some(last_active) = user.last_active {
-                let diff = Utc::now() - last_active;
-                if diff.num_hours() < 72 {
-                    streak_active = true;
-                    info!("Streak bonus active for @{}! (Last merge was {} hours ago)", username, diff.num_hours());
-                }
-            }
+    let streak = if action == "closed" && is_merged {
+        let last_active = stats.iter()
+            .find(|u| u.username.eq_ignore_ascii_case(username))
+            .and_then(|u| u.last_active);
+        let tier = engine::calculator::calculate_streak_tier(last_active);
+        if tier != engine::calculator::StreakTier::None {
+            info!("Streak bonus active for @{}! (Tier: {:?})", username, tier);
         }
-    }
+        tier
+    } else {
+        engine::calculator::StreakTier::None
+    };
 
     let pr_body = event.pull_request.body.as_deref().unwrap_or("");
     let pr_title = event.pull_request.title.as_deref().unwrap_or("");
@@ -220,7 +220,7 @@ async fn process_pull_request_event(event: PullRequestEvent, inst_id: u64) -> Re
         &changed_files,
         pr_body,
         pr_title,
-        streak_active,
+        streak,
     );
 
     if xp_to_add == 0 && dominant_class.is_none() {
@@ -253,14 +253,19 @@ async fn process_issues_event(event: IssuesEvent, inst_id: u64) -> Result<(), an
     info!("Processing Issue action '{}' for user @{}", action, username);
 
     let client = github::client::get_installation_client(inst_id).await?;
-    let xp_to_add = engine::calculator::calculate_issue_xp(&event);
+    let (score_content, sha) = github::state::fetch_score_file(&client, owner, repo).await?;
+    let mut stats = github::parser::parse_score_file(&score_content);
+
+    let last_active = stats.iter()
+        .find(|u| u.username.eq_ignore_ascii_case(username))
+        .and_then(|u| u.last_active);
+    let streak = engine::calculator::calculate_streak_tier(last_active);
+
+    let xp_to_add = engine::calculator::calculate_issue_xp(&event, streak);
 
     if xp_to_add == 0 {
         return Ok(());
     }
-
-    let (score_content, sha) = github::state::fetch_score_file(&client, owner, repo).await?;
-    let mut stats = github::parser::parse_score_file(&score_content);
 
     let now = Utc::now();
     github::state::update_user_stats(&mut stats, username, xp_to_add, None, now);
@@ -284,14 +289,19 @@ async fn process_issue_comment_event(event: IssueCommentEvent, inst_id: u64) -> 
     info!("Processing Issue Comment action 'created' for user @{}", username);
 
     let client = github::client::get_installation_client(inst_id).await?;
-    let xp_to_add = engine::calculator::calculate_comment_xp(&event);
+    let (score_content, sha) = github::state::fetch_score_file(&client, owner, repo).await?;
+    let mut stats = github::parser::parse_score_file(&score_content);
+
+    let last_active = stats.iter()
+        .find(|u| u.username.eq_ignore_ascii_case(username))
+        .and_then(|u| u.last_active);
+    let streak = engine::calculator::calculate_streak_tier(last_active);
+
+    let xp_to_add = engine::calculator::calculate_comment_xp(&event, streak);
 
     if xp_to_add == 0 {
         return Ok(());
     }
-
-    let (score_content, sha) = github::state::fetch_score_file(&client, owner, repo).await?;
-    let mut stats = github::parser::parse_score_file(&score_content);
 
     let now = Utc::now();
     github::state::update_user_stats(&mut stats, username, xp_to_add, None, now);
@@ -315,14 +325,19 @@ async fn process_pr_review_event(event: PullRequestReviewEvent, inst_id: u64) ->
     info!("Processing PR Review approval for user @{}", username);
 
     let client = github::client::get_installation_client(inst_id).await?;
-    let xp_to_add = engine::calculator::calculate_review_xp(&event);
+    let (score_content, sha) = github::state::fetch_score_file(&client, owner, repo).await?;
+    let mut stats = github::parser::parse_score_file(&score_content);
+
+    let last_active = stats.iter()
+        .find(|u| u.username.eq_ignore_ascii_case(username))
+        .and_then(|u| u.last_active);
+    let streak = engine::calculator::calculate_streak_tier(last_active);
+
+    let xp_to_add = engine::calculator::calculate_review_xp(&event, streak);
 
     if xp_to_add == 0 {
         return Ok(());
     }
-
-    let (score_content, sha) = github::state::fetch_score_file(&client, owner, repo).await?;
-    let mut stats = github::parser::parse_score_file(&score_content);
 
     let now = Utc::now();
     github::state::update_user_stats(&mut stats, username, xp_to_add, None, now);
