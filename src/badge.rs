@@ -2,8 +2,8 @@ pub fn generate_badge_svg(level: u32, class_name: &str) -> String {
     let left_text = "Repogee";
     let right_text = format!("Lvl {} {}", level, class_name);
     
-    let left_width = 60;
-    let right_width = (right_text.len() * 7 + 20) as u32;
+    let left_width = calculate_text_width(left_text) + 10;
+    let right_width = calculate_text_width(&right_text) + 10;
     let total_width = left_width + right_width;
     
     format!(
@@ -42,4 +42,12 @@ pub fn generate_badge_svg(level: u32, class_name: &str) -> String {
         left_width + right_width / 2,
         right_text
     )
+}
+
+fn calculate_text_width(text: &str) -> u32 {
+    let mut width = 0;
+    for c in text.chars() {
+        width += if c.is_uppercase() { 7 } else { 6 };
+    }
+    width
 }
