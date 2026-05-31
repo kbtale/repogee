@@ -14,8 +14,7 @@ export default defineConfig({
   ],
   theme: {
     colors: {
-      brandBg: '#000000',
-      brandCard: '#0C121E',
+      black: '#000000',
       blueSlate: '#495867',
       glaucous: '#577399',
       paleSky: '#BDD5EA',

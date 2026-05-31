@@ -45,10 +45,10 @@ export default function SetupView(props: SetupViewProps) {
 
   return (
     <div class="min-h-screen bg-black text-ghostWhite font-hind flex flex-col">
-      <header class="border-b border-blueSlate/20 py-4 px-6 md:px-12 flex justify-between items-center bg-brandCard/20 backdrop-blur-sm sticky top-0 z-50">
+      <header class="border-b border-blueSlate/30 py-4 px-6 md:px-12 flex justify-between items-center bg-black sticky top-0 z-50">
         <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-glaucous to-coral flex items-center justify-center">
-            <span class="i-ph-shield-check-bold text-white text-xl"></span>
+          <div class="w-10 h-10 rounded-xl bg-coral flex items-center justify-center">
+            <span class="i-ph-shield-check-bold text-black text-xl"></span>
           </div>
           <span class="font-montserrat font-bold text-xl tracking-wider text-ghostWhite">repogee</span>
         </div>
@@ -58,16 +58,16 @@ export default function SetupView(props: SetupViewProps) {
             <img
               src={props.user.avatar_url}
               alt={props.user.login}
-              class="w-8 h-8 rounded-full border border-glaucous/30"
+              class="w-8 h-8 rounded-full border border-blueSlate/40"
             />
             <div class="hidden sm:block text-left">
-              <div class="font-montserrat text-sm font-semibold leading-tight">{props.user.name || props.user.login}</div>
-              <div class="text-xs text-glaucous font-molengo">GitHub Authorized</div>
+              <div class="font-montserrat text-sm font-semibold leading-tight text-ghostWhite">{props.user.name || props.user.login}</div>
+              <div class="text-xs text-paleSky font-molengo">Authorized</div>
             </div>
           </div>
           <button
             onClick={props.onLogout}
-            class="p-2 text-glaucous hover:text-coral transition-colors duration-200"
+            class="p-2 text-glaucous hover:text-coral transition-colors duration-150"
             title="Log Out"
           >
             <span class="i-ph-sign-out-bold text-lg"></span>
@@ -78,7 +78,7 @@ export default function SetupView(props: SetupViewProps) {
       <main class="flex-1 max-w-6xl w-full mx-auto px-6 py-10 md:py-16">
         <div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
           <div>
-            <h1 class="font-montserrat text-3xl md:text-4xl font-extrabold tracking-tight mb-2">
+            <h1 class="font-montserrat text-3xl font-extrabold tracking-tight mb-2 text-ghostWhite">
               Repository Setup
             </h1>
             <p class="font-molengo text-lg text-paleSky">
@@ -93,7 +93,7 @@ export default function SetupView(props: SetupViewProps) {
               placeholder="Search repositories..."
               value={searchQuery()}
               onInput={(e) => setSearchQuery(e.currentTarget.value)}
-              class="w-full pl-11 pr-4 py-3 bg-brandCard/40 border border-blueSlate/30 rounded-2xl text-ghostWhite placeholder-glaucous/60 font-hind focus:outline-none focus:border-coral/50 transition-all duration-200"
+              class="w-full pl-11 pr-4 py-3 bg-black border border-blueSlate/30 rounded-xl text-ghostWhite placeholder-glaucous/60 font-hind focus:outline-none focus:border-coral transition-all duration-150"
             />
           </div>
         </div>
@@ -102,21 +102,21 @@ export default function SetupView(props: SetupViewProps) {
           <For
             each={filteredRepos()}
             fallback={
-              <div class="col-span-full py-16 text-center border border-dashed border-blueSlate/20 rounded-3xl">
+              <div class="col-span-full py-16 text-center border border-dashed border-blueSlate/20 rounded-xl">
                 <span class="i-ph-folder-dotted-bold text-glaucous text-4xl mb-3 block mx-auto"></span>
-                <p class="text-glaucous font-molengo text-lg">No repositories matching search query</p>
+                <p class="text-glaucous font-molengo text-lg">No repositories found</p>
               </div>
             }
           >
             {(repo) => (
-              <div class="bg-brandCard/40 border border-blueSlate/20 hover:border-glaucous/30 rounded-2xl p-6 flex flex-col justify-between transition-all duration-200 shadow-md">
+              <div class="bg-black border border-blueSlate/20 hover:border-glaucous rounded-xl p-6 flex flex-col justify-between transition-all duration-150">
                 <div>
                   <div class="flex items-center justify-between mb-3">
                     <span class="flex items-center gap-2 font-montserrat font-bold text-base tracking-wide truncate max-w-85%">
                       <span class={repo.private ? "i-ph-lock-bold text-coral" : "i-ph-globe-bold text-glaucous"}></span>
                       {repo.name}
                     </span>
-                    <span class={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full ${repo.onboarded ? "bg-coral/10 text-coral border border-coral/20" : "bg-blueSlate/20 text-glaucous border border-blueSlate/30"}`}>
+                    <span class={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md border ${repo.onboarded ? "bg-coral/10 text-coral border-coral/20" : "bg-blueSlate/10 text-glaucous border-blueSlate/20"}`}>
                       {repo.onboarded ? "onboarded" : "ready"}
                     </span>
                   </div>
@@ -129,10 +129,10 @@ export default function SetupView(props: SetupViewProps) {
                   <button
                     disabled={loadingRepo() !== null}
                     onClick={() => repo.onboarded ? props.onViewLeaderboard(repo.full_name) : handleOnboard(repo.full_name)}
-                    class={`w-full py-3 px-4 rounded-xl font-montserrat font-semibold text-xs tracking-wider uppercase transition-all duration-200 ${
+                    class={`w-full py-3 px-4 rounded-xl font-montserrat font-semibold text-xs tracking-wider uppercase transition-all duration-150 ${
                       repo.onboarded
                         ? "bg-transparent border border-coral text-coral hover:bg-coral/10"
-                        : "bg-gradient-to-r from-glaucous to-coral text-black hover:scale-[1.02] active:scale-[0.98]"
+                        : "bg-coral text-black hover:bg-coral"
                     }`}
                   >
                     {loadingRepo() === repo.full_name ? (
