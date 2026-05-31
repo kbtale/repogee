@@ -1,15 +1,40 @@
 :root {
-  background-color: #000000;
-  color: #F7F7FF;
+  --theme-bg: #070A13;
+  --theme-card: #0E1322;
+  --theme-border: #2A3644;
+  --theme-border-sub: #161F2C;
+  --theme-primary: #F7F7FF;
+  --theme-secondary: #BDD5EA;
+  --theme-accent: #FE5F55;
+  --theme-glaucous: #577399;
+
+  background-color: var(--theme-bg);
+  color: var(--theme-primary);
+}
+
+:root.light {
+  --theme-bg: #F7F7FF;
+  --theme-card: #FFFFFF;
+  --theme-border: #BDD5EA;
+  --theme-border-sub: #EAF1F8;
+  --theme-primary: #495867;
+  --theme-secondary: #577399;
+  --theme-accent: #FE5F55;
+  --theme-glaucous: #495867;
+
+  background-color: var(--theme-bg);
+  color: var(--theme-primary);
 }
 
 body {
   margin: 0;
   padding: 0;
-  background-color: #000000;
+  background-color: var(--theme-bg);
+  color: var(--theme-primary);
   font-family: 'Hind Madurai', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .font-montserrat {
@@ -30,14 +55,14 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: #000000;
+  background: var(--theme-bg);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #495867;
+  background: var(--theme-border);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #577399;
+  background: var(--theme-glaucous);
 }
