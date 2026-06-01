@@ -18,10 +18,19 @@ export default function App() {
   const [user, setUser] = createSignal<{ login: string; avatar_url: string; name: string | null } | null>(null)
   const [repos, setRepos] = createSignal<Repo[]>([])
   const [selectedRepo, setSelectedRepo] = createSignal<string | null>(null)
+  const [theme, setTheme] = createSignal<'dark' | 'light'>('dark')
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
 
   onMount(async () => {
+    const savedTheme = localStorage.getItem('theme') || 'dark'
+    setTheme(savedTheme as 'dark' | 'light')
+    if (savedTheme === 'light') {
+      document.documentElement.classList.add('light')
+    } else {
+      document.documentElement.classList.remove('light')
+    }
+
     const params = new URLSearchParams(window.location.search)
     const tokenParam = params.get('token')
 
@@ -67,6 +76,17 @@ export default function App() {
     }
   })
 
+  const toggleTheme = () => {
+    const next = theme() === 'dark' ? 'light' : 'dark'
+    setTheme(next)
+    localStorage.setItem('theme', next)
+    if (next === 'light') {
+      document.documentElement.classList.add('light')
+    } else {
+      document.documentElement.classList.remove('light')
+    }
+  }
+
   const handleLogin = () => {
     window.location.href = `${API_URL}/login`
   }
@@ -105,18 +125,20 @@ export default function App() {
   return (
     <Switch>
       <Match when={loading()}>
-        <div class="min-h-screen bg-black flex flex-col items-center justify-center text-ghostWhite font-hind">
-          <span class="animate-spin i-ph-circle-notch-bold text-4xl text-coral mb-4"></span>
-          <p class="text-glaucous font-molengo text-lg">Authenticating with GitHub...</p>
+        <div class="min-h-screen bg-theme-bg flex flex-col items-center justify-center text-theme-primary font-hind">
+          <span class="animate-spin i-ph-circle-notch-bold text-4xl text-theme-accent mb-4"></span>
+          <p class="text-theme-secondary font-molengo text-lg">Authenticating with GitHub...</p>
         </div>
       </Match>
       <Match when={view() === 'landing' && !loading()}>
-        <LandingView onLogin={handleLogin} />
+        <LandingView onLogin={handleLogin} theme={theme()} onToggleTheme={toggleTheme} />
       </Match>
       <Match when={view() === 'setup' && !loading() && user()}>
         <SetupView
           user={user()!}
           repos={repos()}
+          theme={theme()}
+          onToggleTheme={toggleTheme}
           onOnboard={handleOnboard}
           onViewLeaderboard={(repoFullName) => {
             setSelectedRepo(repoFullName)
@@ -129,6 +151,8 @@ export default function App() {
         <LeaderboardView
           user={user()!}
           selectedRepo={selectedRepo()!}
+          theme={theme()}
+          onToggleTheme={toggleTheme}
           onBack={() => setView('setup')}
           onLogout={handleLogout}
         />
