@@ -275,6 +275,10 @@ async fn run_local_cli() -> Result<(), anyhow::Error> {
 
 #[tokio::main]
 async fn main() {
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .expect("Failed to install default CryptoProvider");
+
     if let (Err(e), Err(_)) = (dotenvy::dotenv(), std::env::var("GITHUB_ACTIONS")) {
         eprintln!("Warning: Failed to load .env file: {}", e);
     }
