@@ -343,7 +343,7 @@ async fn main() {
 
 async fn login_handler(State(state): State<AppState>) -> impl IntoResponse {
     let url = format!(
-        "https://github.com/login/oauth/authorize?client_id={}&scope=repo,read:user,write:repo_hook",
+        "https://github.com/login/oauth/authorize?client_id={}&scope=repo,read%3Auser,write%3Arepo_hook",
         state.client_id
     );
     axum::response::Redirect::temporary(&url)
