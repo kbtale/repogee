@@ -319,6 +319,7 @@ async fn main() {
         ]);
 
     let app = Router::new()
+        .without_v07_checks()
         .route("/health", get(health_check))
         .route("/webhook", post(handle_webhook))
         .route("/login", get(login_handler))
