@@ -109,6 +109,17 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
     return active || (list.length > 0 ? list[0] : { username: props.user.login, xp: 0, level: 1, class: 'Novice', subclass: 'Unranked', last_active: null })
   }
 
+  const getWeeklyPace = () => {
+    const today = new Date()
+    const sevenDaysAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
+    const recentCommits = events().filter(e => e.rawDate && e.rawDate >= sevenDaysAgo)
+    const count = recentCommits.length
+    if (count === 0) return 'Inactive'
+    if (count < 3) return 'Low Activity'
+    if (count < 10) return 'Moderate Activity'
+    return 'High Activity'
+  }
+
   const handleSort = () => {
     setSortOrder(sortOrder() === 'desc' ? 'asc' : 'desc')
     setCurrentPage(1)
@@ -418,7 +429,7 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
                       <div class="bg-theme-bg border border-theme-border/40 rounded-3xl p-4 flex flex-col justify-between">
                         <span class="text-[9px] text-theme-secondary font-molengo uppercase tracking-wider">Weekly Pace</span>
                         <div class="font-montserrat text-2xl font-extrabold text-theme-accent mt-2 uppercase tracking-wide">
-                          High Activity
+                          {getWeeklyPace()}
                         </div>
                       </div>
                     </div>
