@@ -112,3 +112,55 @@ pub fn generate_score_file(stats: &[UserStats]) -> String {
 pub fn get_default_score_file() -> String {
     generate_score_file(&[])
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod score_file {
+        use super::*;
+
+        #[test]
+        fn generates_default_empty_leaderboard() {
+            let default_md = get_default_score_file();
+            assert!(default_md.contains("# 🏆 Repogee Leaderboard"));
+            assert!(default_md.contains("| Username | Class | Level | XP | Last Active |"));
+        }
+
+        #[test]
+        fn parses_valid_score_file_rows() {
+            let content = "\
+# Repogee Leaderboard
+
+| Username | Class | Level | XP | Last Active |
+| --- | --- | --- | --- | --- |
+| @alice | Backend Developer: Database | 5 | 500 | 2026-06-03T23:53:22Z |
+| @bob | Frontend Engineer: UI | 3 | 300 | N/A |
+";
+            let stats = parse_score_file(content);
+            assert_eq!(stats.len(), 2);
+            assert_eq!(stats[0].username, "alice");
+            assert_eq!(stats[0].subclass, "Database");
+            assert_eq!(stats[0].level, 5);
+            assert_eq!(stats[0].xp, 500);
+            assert_eq!(stats[1].username, "bob");
+            assert_eq!(stats[1].subclass, "UI");
+            assert_eq!(stats[1].level, 3);
+            assert_eq!(stats[1].xp, 300);
+        }
+
+        #[test]
+        fn generates_correct_markdown_for_stats() {
+            let stats = vec![UserStats {
+                username: "charlie".to_string(),
+                class: FuturisticClass::FrontendArtisan,
+                subclass: "Architecture".to_string(),
+                level: 2,
+                xp: 200,
+                last_active: None,
+            }];
+            let generated = generate_score_file(&stats);
+            assert!(generated.contains("| @charlie | Frontend Artisan: Architecture | 2 | 200 | N/A |"));
+        }
+    }
+}

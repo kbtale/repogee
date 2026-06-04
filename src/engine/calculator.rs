@@ -297,3 +297,269 @@ pub fn calculate_push_xp(event: &PushEvent) -> u32 {
     }
     base_xp
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::{User, Repository, PullRequest, PullRequestEvent, IssuesEvent, Issue, PushEvent, PushCommit, CommitAuthor};
+
+    mod calculate_level {
+        use super::*;
+
+        #[test]
+        fn returns_zero_when_xp_is_zero() {
+            assert_eq!(calculate_level(0), 0);
+        }
+
+        #[test]
+        fn returns_five_when_xp_is_four_hundred() {
+            assert_eq!(calculate_level(400), 5);
+        }
+
+        #[test]
+        fn returns_ten_when_xp_is_sixteen_hundred() {
+            assert_eq!(calculate_level(1600), 10);
+        }
+    }
+
+    mod calculate_push_xp {
+        use super::*;
+
+        #[test]
+        fn returns_zero_for_non_main_branch_single_commit() {
+            let user = User { login: "user1".to_string() };
+            let repo = Repository {
+                name: "repo1".to_string(),
+                owner: user.clone(),
+                full_name: "user1/repo1".to_string(),
+            };
+            let commit = PushCommit {
+                id: "123".to_string(),
+                message: "feat: something".to_string(),
+                author: CommitAuthor {
+                    name: "User One".to_string(),
+                    username: Some("user1".to_string()),
+                },
+                added: vec![],
+                removed: vec![],
+                modified: vec![],
+            };
+            let event = PushEvent {
+                ref_field: "refs/heads/feature".to_string(),
+                forced: false,
+                commits: vec![commit],
+                repository: repo,
+                sender: user,
+                installation: None,
+            };
+            assert_eq!(calculate_push_xp(&event), 0);
+        }
+
+        #[test]
+        fn adds_direct_commit_bonus_when_pushed_to_main() {
+            let user = User { login: "user1".to_string() };
+            let repo = Repository {
+                name: "repo1".to_string(),
+                owner: user.clone(),
+                full_name: "user1/repo1".to_string(),
+            };
+            let commit = PushCommit {
+                id: "123".to_string(),
+                message: "feat: something".to_string(),
+                author: CommitAuthor {
+                    name: "User One".to_string(),
+                    username: Some("user1".to_string()),
+                },
+                added: vec![],
+                removed: vec![],
+                modified: vec![],
+            };
+            let event = PushEvent {
+                ref_field: "refs/heads/main".to_string(),
+                forced: false,
+                commits: vec![commit],
+                repository: repo,
+                sender: user,
+                installation: None,
+            };
+            assert_eq!(calculate_push_xp(&event), BONUS_DIRECT_COMMIT);
+        }
+
+        #[test]
+        fn adds_batch_commit_bonus_when_five_commits_pushed() {
+            let user = User { login: "user1".to_string() };
+            let repo = Repository {
+                name: "repo1".to_string(),
+                owner: user.clone(),
+                full_name: "user1/repo1".to_string(),
+            };
+            let commits = (0..5).map(|i| PushCommit {
+                id: i.to_string(),
+                message: "feat: something".to_string(),
+                author: CommitAuthor {
+                    name: "User One".to_string(),
+                    username: Some("user1".to_string()),
+                },
+                added: vec![],
+                removed: vec![],
+                modified: vec![],
+            }).collect();
+            let event = PushEvent {
+                ref_field: "refs/heads/feature".to_string(),
+                forced: false,
+                commits,
+                repository: repo,
+                sender: user,
+                installation: None,
+            };
+            assert_eq!(calculate_push_xp(&event), BONUS_BATCH_COMMIT);
+        }
+    }
+
+    mod calculate_issue_xp {
+        use super::*;
+
+        #[test]
+        fn returns_zero_for_unsupported_action() {
+            let user = User { login: "user1".to_string() };
+            let repo = Repository {
+                name: "repo1".to_string(),
+                owner: user.clone(),
+                full_name: "user1/repo1".to_string(),
+            };
+            let issue = Issue {
+                number: 1,
+                user: user.clone(),
+                labels: vec![],
+                state_reason: None,
+                body: None,
+            };
+            let event = IssuesEvent {
+                action: "labeled".to_string(),
+                issue,
+                repository: repo,
+                sender: user,
+                installation: None,
+            };
+            assert_eq!(calculate_issue_xp(&event), 0);
+        }
+
+        #[test]
+        fn returns_standard_ten_points_for_short_opened_issue() {
+            let user = User { login: "user1".to_string() };
+            let repo = Repository {
+                name: "repo1".to_string(),
+                owner: user.clone(),
+                full_name: "user1/repo1".to_string(),
+            };
+            let issue = Issue {
+                number: 1,
+                user: user.clone(),
+                labels: vec![],
+                state_reason: None,
+                body: Some("very short body".to_string()),
+            };
+            let event = IssuesEvent {
+                action: "opened".to_string(),
+                issue,
+                repository: repo,
+                sender: user,
+                installation: None,
+            };
+            assert_eq!(calculate_issue_xp(&event), 10);
+        }
+
+        #[test]
+        fn returns_additional_points_for_detailed_opened_issue() {
+            let user = User { login: "user1".to_string() };
+            let repo = Repository {
+                name: "repo1".to_string(),
+                owner: user.clone(),
+                full_name: "user1/repo1".to_string(),
+            };
+            let issue = Issue {
+                number: 1,
+                user: user.clone(),
+                labels: vec![],
+                state_reason: None,
+                body: Some("a".repeat(120)),
+            };
+            let event = IssuesEvent {
+                action: "opened".to_string(),
+                issue,
+                repository: repo,
+                sender: user,
+                installation: None,
+            };
+            assert_eq!(calculate_issue_xp(&event), XP_OPEN_DETAILED_ISSUE);
+        }
+    }
+
+    mod calculate_pr_xp {
+        use super::*;
+
+        #[test]
+        fn returns_basic_xp_for_opened_pr() {
+            let user = User { login: "user1".to_string() };
+            let repo = Repository {
+                name: "repo1".to_string(),
+                owner: user.clone(),
+                full_name: "user1/repo1".to_string(),
+            };
+            let pr = PullRequest {
+                number: 1,
+                title: Some("feat: implementation".to_string()),
+                body: Some("detailed description".to_string()),
+                merged: Some(false),
+                additions: Some(10),
+                deletions: Some(5),
+                user: user.clone(),
+                labels: vec![],
+                created_at: None,
+                merged_at: None,
+            };
+            let event = PullRequestEvent {
+                action: "opened".to_string(),
+                pull_request: pr,
+                repository: repo,
+                sender: user,
+                installation: None,
+            };
+            let files = vec![];
+            assert_eq!(calculate_pr_xp(&event, &files, "", "", false), XP_OPEN_PR);
+        }
+
+        #[test]
+        fn applies_streak_multiplier_to_positive_pr_xp() {
+            let user = User { login: "user1".to_string() };
+            let repo = Repository {
+                name: "repo1".to_string(),
+                owner: user.clone(),
+                full_name: "user1/repo1".to_string(),
+            };
+            let pr = PullRequest {
+                number: 1,
+                title: Some("feat: implementation".to_string()),
+                body: Some("detailed description".to_string()),
+                merged: Some(false),
+                additions: Some(10),
+                deletions: Some(5),
+                user: user.clone(),
+                labels: vec![],
+                created_at: None,
+                merged_at: None,
+            };
+            let event = PullRequestEvent {
+                action: "opened".to_string(),
+                pull_request: pr,
+                repository: repo,
+                sender: user,
+                installation: None,
+            };
+            let files = vec![];
+            let expected_base = XP_OPEN_PR;
+            let expected_total = expected_base + ((expected_base as f64) * MULTIPLIER_STREAK).round() as u32;
+            assert_eq!(calculate_pr_xp(&event, &files, "", "", true), expected_total);
+        }
+    }
+}
