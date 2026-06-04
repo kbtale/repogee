@@ -13,7 +13,6 @@ interface ActivityEvent {
   id: string
   title: string
   contributor: string
-  xp: number
   time: string
   rawDate: Date
   type: 'push' | 'pr_open' | 'review' | 'comment'
@@ -83,7 +82,6 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
             id: c.sha || String(index),
             title: c.commit.message.split('\n')[0],
             contributor: c.author?.login || c.commit.author.name || 'anonymous',
-            xp: 15,
             time: timeStr,
             rawDate: commitTime,
             type: 'push' as const,
@@ -367,9 +365,6 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
                             </div>
 
                             <div class="flex items-center gap-3 shrink-0">
-                              <span class="text-[9px] text-[#070A13] font-montserrat font-bold bg-theme-accent px-2.5 py-1 rounded-full shrink-0">
-                                +{event.xp} XP
-                              </span>
                               <span class="text-[10px] text-theme-secondary font-hind hidden sm:inline">{event.time}</span>
                             </div>
                           </div>
