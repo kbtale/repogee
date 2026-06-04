@@ -44,10 +44,6 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
 
-  const fallbackContributors: Contributor[] = [
-    { username: props.user.login, xp: 120, level: 2, class: 'BackendDeveloper', subclass: 'General Architect', last_active: '2026-05-28T10:30:00Z' },
-  ]
-
   onMount(async () => {
     const token = localStorage.getItem('token')
     
@@ -60,10 +56,10 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
       if (Array.isArray(data) && data.length > 0) {
         setContributors(data)
       } else {
-        setContributors(fallbackContributors)
+        setContributors([])
       }
     } catch (err) {
-      setContributors(fallbackContributors)
+      setContributors([])
     }
 
     try {
@@ -112,7 +108,7 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
   const getActiveUser = () => {
     const list = contributors()
     const active = list.find(c => c.username.toLowerCase() === props.user.login.toLowerCase())
-    return active || (list.length > 0 ? list[0] : fallbackContributors[0])
+    return active || (list.length > 0 ? list[0] : { username: props.user.login, xp: 0, level: 1, class: 'Novice', subclass: 'Unranked', last_active: null })
   }
 
   const handleSort = () => {
@@ -293,7 +289,15 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
                     <h2 class="font-montserrat text-base sm:text-lg font-extrabold tracking-widest uppercase mb-6 text-theme-primary">RPG Rankings</h2>
                     
                     <div class="flex flex-col gap-3">
-                      <For each={contributors()}>
+                      <For
+                        each={contributors()}
+                        fallback={
+                          <div class="py-8 text-center border border-dashed border-theme-border rounded-3xl bg-theme-bg">
+                            <svg class="w-8 h-8 text-theme-glaucous mb-2 mx-auto" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                            <p class="text-theme-secondary font-molengo text-xs italic">No contributors yet - onboard a repository to start tracking</p>
+                          </div>
+                        }
+                      >
                         {(contributor, index) => (
                           <div class="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-theme-bg border border-theme-border/40 rounded-3xl sm:rounded-full hover:border-theme-accent transition-all duration-200 gap-3">
                             <div class="flex items-center gap-3 min-w-0">
