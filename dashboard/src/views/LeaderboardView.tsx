@@ -471,21 +471,28 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
                   <h2 class="font-montserrat text-base sm:text-lg font-extrabold tracking-widest uppercase mb-6 text-theme-primary">XP Contribution Analytics</h2>
                   <div class="flex flex-col gap-4">
                     <div class="flex items-center justify-between p-4 bg-theme-bg border border-theme-border/40 rounded-2xl">
-                      <span class="text-xs font-semibold text-theme-primary">Pull Requests</span>
+                      <span class="text-xs font-semibold text-theme-primary">Merged Pull Request (Base)</span>
                       <span class="text-xs font-bold text-theme-accent">50 XP</span>
                     </div>
                     <div class="flex items-center justify-between p-4 bg-theme-bg border border-theme-border/40 rounded-2xl">
-                      <span class="text-xs font-semibold text-theme-primary">Commits</span>
-                      <span class="text-xs font-bold text-theme-accent">15 XP</span>
+                      <span class="text-xs font-semibold text-theme-primary">Closed Issue (Base)</span>
+                      <span class="text-xs font-bold text-theme-accent">30 XP</span>
                     </div>
                     <div class="flex items-center justify-between p-4 bg-theme-bg border border-theme-border/40 rounded-2xl">
-                      <span class="text-xs font-semibold text-theme-primary">Issues Opened</span>
+                      <span class="text-xs font-semibold text-theme-primary">Approved Review (Base)</span>
+                      <span class="text-xs font-bold text-theme-accent">25 XP</span>
+                    </div>
+                    <div class="flex items-center justify-between p-4 bg-theme-bg border border-theme-border/40 rounded-2xl">
+                      <span class="text-xs font-semibold text-theme-primary">Opened Detailed Issue (Base)</span>
                       <span class="text-xs font-bold text-theme-accent">10 XP</span>
                     </div>
                     <div class="flex items-center justify-between p-4 bg-theme-bg border border-theme-border/40 rounded-2xl">
-                      <span class="text-xs font-semibold text-theme-primary">Review Comments</span>
+                      <span class="text-xs font-semibold text-theme-primary">Inline Review Comment (Base)</span>
                       <span class="text-xs font-bold text-theme-accent">5 XP</span>
                     </div>
+                    <p class="text-[10px] text-theme-secondary mt-2 leading-relaxed">
+                      Note: Additional XP bonuses are awarded for heavy refactoring, resolving merge conflicts, adding documentation, batch commits, and maintaining activity streaks.
+                    </p>
                   </div>
                 </div>
 
