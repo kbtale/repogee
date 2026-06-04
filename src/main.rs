@@ -572,31 +572,28 @@ async fn onboard_handler(
         .await
         .is_ok();
 
+    let mut score_created = false;
     if !exists {
         let default_score = github::parser::get_default_score_file();
-        octo
+        match octo
             .repos(owner, repo)
             .create_file(content_path, "chore: initialize repogee SCORE.md", default_score)
             .send()
             .await
-            .map_err(|e| {
-                (
+        {
+            Ok(_) => {
+                info!("Created SCORE.md in {}/{}", owner, repo);
+                score_created = true;
+            }
+            Err(e) => {
+                warn!("Failed to create SCORE.md in {}/{}: {:?}", owner, repo, e);
+                return Err((
                     axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                     format!("Failed to create SCORE.md on GitHub: {:?}", e),
-                )
-            })?;
+                ));
+            }
+        }
     }
-
-    let score_created = match score_result {
-        Ok(_) => {
-            info!("Created SCORE.md in {}/{}", owner, repo);
-            true
-        }
-        Err(e) => {
-            warn!("Failed to create SCORE.md in {}/{}: {:?}", owner, repo, e);
-            false
-        }
-    };
 
     let webhook_url = format!("{}/webhook", state.base_url);
     let hook_config = octocrab::models::hooks::Config {
