@@ -40,6 +40,7 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
   const [sortOrder, setSortOrder] = createSignal<'asc' | 'desc'>('desc')
   const [currentPage, setCurrentPage] = createSignal(1)
   const itemsPerPage = 5
+  const [searchQuery, setSearchQuery] = createSignal('')
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
 
@@ -118,6 +119,12 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
     if (count < 3) return 'Low Activity'
     if (count < 10) return 'Moderate Activity'
     return 'High Activity'
+  }
+
+  const filteredContributors = () => {
+    const query = searchQuery().toLowerCase().trim()
+    if (!query) return contributors()
+    return contributors().filter(c => c.username.toLowerCase().includes(query))
   }
 
   const handleSort = () => {
@@ -229,6 +236,8 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
                 <input
                   type="text"
                   placeholder="Search..."
+                  value={searchQuery()}
+                  onInput={(e) => setSearchQuery(e.currentTarget.value)}
                   class="w-full pl-9 pr-4 py-1.5 bg-theme-bg border border-theme-border rounded-full text-xs text-theme-primary placeholder-theme-glaucous/50 focus:outline-none focus:border-theme-accent transition-all duration-150"
                 />
               </div>
@@ -299,7 +308,7 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
                     
                     <div class="flex flex-col gap-3">
                       <For
-                        each={contributors()}
+                        each={filteredContributors()}
                         fallback={
                           <div class="py-8 text-center border border-dashed border-theme-border rounded-3xl bg-theme-bg">
                             <svg class="w-8 h-8 text-theme-glaucous mb-2 mx-auto" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
