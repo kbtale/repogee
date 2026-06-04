@@ -397,18 +397,46 @@ async fn callback_handler(
     }
 }
 
-async fn leaderboard_handler() -> impl IntoResponse {
-    let score_path = std::env::var("REPOGEE_SCORE_PATH").unwrap_or_else(|_| "SCORE.md".to_string());
-    let score_content = if std::path::Path::new(&score_path).exists() {
-        match std::fs::read_to_string(&score_path) {
-            Ok(content) => content,
-            Err(_) => github::parser::get_default_score_file(),
+#[derive(serde::Deserialize)]
+pub struct LeaderboardQuery {
+    pub repo: Option<String>,
+}
+
+async fn leaderboard_handler(
+    headers: HeaderMap,
+    axum::extract::Query(query): axum::extract::Query<LeaderboardQuery>,
+) -> Result<impl IntoResponse, (axum::http::StatusCode, String)> {
+    let score_content = if let (Some(repo_full_name), Some(auth_header)) = (query.repo, headers.get("Authorization").and_then(|h| h.to_str().ok())) {
+        if let Some(token) = auth_header.strip_prefix("Bearer ") {
+            let octo = octocrab::Octocrab::builder()
+                .personal_token(token.to_string())
+                .build()
+                .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("Octocrab build failed: {:?}", e)))?;
+            let parts: Vec<&str> = repo_full_name.split('/').collect();
+            if parts.len() == 2 {
+                let owner = parts[0];
+                let repo = parts[1];
+                match github::state::fetch_score_file(&octo, owner, repo).await {
+                    Ok((content, _)) => content,
+                    Err(_) => github::parser::get_default_score_file(),
+                }
+            } else {
+                github::parser::get_default_score_file()
+            }
+        } else {
+            github::parser::get_default_score_file()
         }
     } else {
-        github::parser::get_default_score_file()
+        let score_path = std::env::var("REPOGEE_SCORE_PATH").unwrap_or_else(|_| "SCORE.md".to_string());
+        if std::path::Path::new(&score_path).exists() {
+            std::fs::read_to_string(&score_path).unwrap_or_else(|_| github::parser::get_default_score_file())
+        } else {
+            github::parser::get_default_score_file()
+        }
     };
+
     let stats = github::parser::parse_score_file(&score_content);
-    axum::Json(stats)
+    Ok(axum::Json(stats))
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -446,26 +474,42 @@ async fn repos_handler(
         .await
         .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch user repos: {:?}", e)))?;
 
-    let score_path = std::env::var("REPOGEE_SCORE_PATH").unwrap_or_else(|_| "SCORE.md".to_string());
-    let score_exists = std::path::Path::new(&score_path).exists();
+    let mut join_set = tokio::task::JoinSet::new();
+    for repo in page {
+        let octo = octo.clone();
+        join_set.spawn(async move {
+            let full_name = repo.full_name.clone().unwrap_or_default();
+            let parts: Vec<&str> = full_name.split('/').collect();
+            let mut onboarded = false;
+            if parts.len() == 2 {
+                let owner = parts[0];
+                let r_name = parts[1];
+                let res = octo
+                    .repos(owner, r_name)
+                    .get_content()
+                    .path("SCORE.md")
+                    .send()
+                    .await;
+                if res.is_ok() {
+                    onboarded = true;
+                }
+            }
+            GithubRepoInfo {
+                id: repo.id.into_inner(),
+                name: repo.name,
+                full_name,
+                description: repo.description,
+                private: repo.r#private.unwrap_or(false),
+                onboarded,
+            }
+        });
+    }
 
     let mut repos = Vec::new();
-    for repo in page {
-        let full_name = repo.full_name.unwrap_or_default();
-        let onboarded = if full_name == "kbtale/repogee" {
-            score_exists
-        } else {
-            false
-        };
-
-        repos.push(GithubRepoInfo {
-            id: repo.id.into_inner(),
-            name: repo.name,
-            full_name,
-            description: repo.description,
-            private: repo.r#private.unwrap_or(false),
-            onboarded,
-        });
+    while let Some(res) = join_set.join_next().await {
+        if let Ok(repo_info) = res {
+            repos.push(repo_info);
+        }
     }
 
     Ok((axum::http::StatusCode::OK, axum::Json(repos)))
@@ -504,11 +548,17 @@ async fn onboard_handler(
     let default_score = github::parser::get_default_score_file();
     let content_path = "SCORE.md";
 
-    let _ = octo
+    octo
         .repos(owner, repo)
         .create_file(content_path, "chore: initialize repogee SCORE.md", default_score)
         .send()
-        .await;
+        .await
+        .map_err(|e| {
+            (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to create SCORE.md on GitHub: {:?}", e),
+            )
+        })?;
 
     Ok((axum::http::StatusCode::OK, axum::Json(serde_json::json!({ "status": "success" }))))
 }

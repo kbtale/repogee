@@ -52,7 +52,9 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
     const token = localStorage.getItem('token')
     
     try {
-      const res = await fetch(`${API_URL}/api/leaderboard`)
+      const res = await fetch(`${API_URL}/api/leaderboard?repo=${props.selectedRepo}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
       if (!res.ok) throw new Error()
       const data = await res.json()
       if (Array.isArray(data) && data.length > 0) {
