@@ -2,6 +2,7 @@ mod security;
 mod types;
 mod engine;
 mod github;
+mod badge;
 
 use axum::{
     extract::{State, Query},
@@ -27,6 +28,7 @@ pub struct AppState {
     pub app_client: octocrab::Octocrab,
     pub client_id: String,
     pub client_secret: String,
+    pub base_url: String,
 }
 
 fn get_local_changed_files() -> Vec<types::ChangedFile> {
@@ -110,18 +112,17 @@ async fn run_local_cli() -> Result<(), anyhow::Error> {
             let pr_body = event.pull_request.body.as_deref().unwrap_or("");
             let pr_title = event.pull_request.title.as_deref().unwrap_or("");
 
-            let streak_active = stats.iter()
+            let last_active = stats.iter()
                 .find(|u| u.username.eq_ignore_ascii_case(&username))
-                .and_then(|u| u.last_active)
-                .map(|last_active| (Utc::now() - last_active).num_hours() < 72)
-                .unwrap_or(false);
+                .and_then(|u| u.last_active);
+            let streak = engine::calculator::calculate_streak_tier(last_active);
 
             let xp_to_add = engine::calculator::calculate_pr_xp(
                 &event,
                 &changed_files,
                 pr_body,
                 pr_title,
-                streak_active,
+                streak,
             );
 
             (username, xp_to_add, dominant_class)
@@ -138,7 +139,11 @@ async fn run_local_cli() -> Result<(), anyhow::Error> {
                 return Ok(());
             }
 
-            let xp_to_add = engine::calculator::calculate_issue_xp(&event);
+            let last_active = stats.iter()
+                .find(|u| u.username.eq_ignore_ascii_case(&username))
+                .and_then(|u| u.last_active);
+            let streak = engine::calculator::calculate_streak_tier(last_active);
+            let xp_to_add = engine::calculator::calculate_issue_xp(&event, streak);
             (username, xp_to_add, None)
         }
         "issue_comment" => {
@@ -151,7 +156,11 @@ async fn run_local_cli() -> Result<(), anyhow::Error> {
             }
 
             let username = event.comment.user.login.clone();
-            let xp_to_add = engine::calculator::calculate_comment_xp(&event);
+            let last_active = stats.iter()
+                .find(|u| u.username.eq_ignore_ascii_case(&username))
+                .and_then(|u| u.last_active);
+            let streak = engine::calculator::calculate_streak_tier(last_active);
+            let xp_to_add = engine::calculator::calculate_comment_xp(&event, streak);
             (username, xp_to_add, None)
         }
         "pull_request_review" => {
@@ -163,7 +172,11 @@ async fn run_local_cli() -> Result<(), anyhow::Error> {
             }
 
             let username = event.review.user.login.clone();
-            let xp_to_add = engine::calculator::calculate_review_xp(&event);
+            let last_active = stats.iter()
+                .find(|u| u.username.eq_ignore_ascii_case(&username))
+                .and_then(|u| u.last_active);
+            let streak = engine::calculator::calculate_streak_tier(last_active);
+            let xp_to_add = engine::calculator::calculate_review_xp(&event, streak);
             (username, xp_to_add, None)
         }
         "push" => {
@@ -294,12 +307,15 @@ async fn main() {
 
     let client_id = std::env::var("GITHUB_CLIENT_ID").unwrap_or_default();
     let client_secret = std::env::var("GITHUB_CLIENT_SECRET").unwrap_or_default();
+    let base_url = std::env::var("BASE_URL")
+        .expect("BASE_URL must be set");
 
     let state = AppState {
         webhook_secret,
         app_client,
         client_id,
         client_secret,
+        base_url,
     };
 
     let frontend_url = std::env::var("FRONTEND_URL").unwrap_or_else(|_| "http://localhost:5173".to_string());
@@ -327,6 +343,7 @@ async fn main() {
         .route("/api/leaderboard", get(leaderboard_handler))
         .route("/api/repos", get(repos_handler))
         .route("/api/onboard", post(onboard_handler))
+        .route("/api/badge/:username", get(badge_handler))
         .layer(cors)
         .with_state(state);
 
@@ -521,26 +538,27 @@ pub struct OnboardPayload {
 }
 
 async fn onboard_handler(
+    State(state): State<AppState>,
     headers: HeaderMap,
     axum::Json(payload): axum::Json<OnboardPayload>,
-) -> Result<impl IntoResponse, (axum::http::StatusCode, String)> {
+) -> Result<impl IntoResponse, (StatusCode, String)> {
     let auth_header = headers
         .get("Authorization")
         .and_then(|h| h.to_str().ok())
-        .ok_or_else(|| (axum::http::StatusCode::UNAUTHORIZED, "Missing Authorization header".to_string()))?;
+        .ok_or_else(|| (StatusCode::UNAUTHORIZED, "Missing Authorization header".to_string()))?;
 
     let token = auth_header
         .strip_prefix("Bearer ")
-        .ok_or_else(|| (axum::http::StatusCode::BAD_REQUEST, "Invalid Authorization token format".to_string()))?;
+        .ok_or_else(|| (StatusCode::BAD_REQUEST, "Invalid Authorization token format".to_string()))?;
 
     let octo = octocrab::Octocrab::builder()
         .personal_token(token.to_string())
         .build()
-        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("Octocrab build failed: {:?}", e)))?;
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to build GitHub client: {:?}", e)))?;
 
     let parts: Vec<&str> = payload.repo_full_name.split('/').collect();
     if parts.len() != 2 {
-        return Err((axum::http::StatusCode::BAD_REQUEST, "Invalid repo_full_name format".to_string()));
+        return Err((StatusCode::BAD_REQUEST, "Invalid repo_full_name format".to_string()));
     }
     let owner = parts[0];
     let repo = parts[1];
@@ -569,7 +587,65 @@ async fn onboard_handler(
             })?;
     }
 
-    Ok((axum::http::StatusCode::OK, axum::Json(serde_json::json!({ "status": "success" }))))
+    let score_created = match score_result {
+        Ok(_) => {
+            info!("Created SCORE.md in {}/{}", owner, repo);
+            true
+        }
+        Err(e) => {
+            warn!("Failed to create SCORE.md in {}/{}: {:?}", owner, repo, e);
+            false
+        }
+    };
+
+    let webhook_url = format!("{}/webhook", state.base_url);
+    let hook_config = octocrab::models::hooks::Config {
+        url: webhook_url.clone(),
+        content_type: Some(octocrab::models::hooks::ContentType::Json),
+        insecure_ssl: None,
+        secret: Some(state.webhook_secret.clone()),
+    };
+
+    let hook = octocrab::models::hooks::Hook {
+        name: "web".to_string(),
+        active: true,
+        events: vec![
+            octocrab::models::webhook_events::WebhookEventType::PullRequest,
+            octocrab::models::webhook_events::WebhookEventType::Issues,
+            octocrab::models::webhook_events::WebhookEventType::IssueComment,
+            octocrab::models::webhook_events::WebhookEventType::PullRequestReview,
+            octocrab::models::webhook_events::WebhookEventType::Push,
+        ],
+        config: hook_config,
+        ..octocrab::models::hooks::Hook::default()
+    };
+
+    let webhook_status = match octo.repos(owner, repo).create_hook(hook).await {
+        Ok(created_hook) => {
+            info!("Created webhook in {}/{} (id: {})", owner, repo, created_hook.id);
+            "created"
+        }
+        Err(e) => {
+            if let octocrab::Error::GitHub { source, .. } = &e {
+                if source.status_code.as_u16() == 422 {
+                    info!("Webhook already exists in {}/{}", owner, repo);
+                    "already_exists"
+                } else {
+                    warn!("Failed to create webhook in {}/{}: {:?}", owner, repo, e);
+                    "failed"
+                }
+            } else {
+                warn!("Failed to create webhook in {}/{}: {:?}", owner, repo, e);
+                "failed"
+            }
+        }
+    };
+
+    Ok((StatusCode::OK, axum::Json(serde_json::json!({
+        "status": "success",
+        "score_created": score_created,
+        "webhook_status": webhook_status,
+    }))))
 }
 
 async fn health_check() -> &'static str {
@@ -851,21 +927,17 @@ async fn process_pull_request_event(
     let pr_title = event.pull_request.title.as_deref().unwrap_or("");
 
     github::state::update_leaderboard_with_retry(&client, owner, repo, username, |stats| {
-        let streak_active = if action == "closed" && is_merged {
-            stats.iter()
+        let streak = if action == "closed" && is_merged {
+            let last_active = stats.iter()
                 .find(|u| u.username.eq_ignore_ascii_case(username))
-                .and_then(|u| u.last_active)
-                .map(|last_active| {
-                    let diff = Utc::now() - last_active;
-                    let is_active = diff.num_hours() < 72;
-                    if is_active {
-                        info!("Streak bonus active for @{}! (Last merge was {} hours ago)", username, diff.num_hours());
-                    }
-                    is_active
-                })
-                .unwrap_or(false)
+                .and_then(|u| u.last_active);
+            let tier = engine::calculator::calculate_streak_tier(last_active);
+            if tier != engine::calculator::StreakTier::None {
+                info!("Streak bonus active for @{}! (Tier: {:?})", username, tier);
+            }
+            tier
         } else {
-            false
+            engine::calculator::StreakTier::None
         };
 
         let xp_to_add = engine::calculator::calculate_pr_xp(
@@ -873,7 +945,7 @@ async fn process_pull_request_event(
             &changed_files,
             pr_body,
             pr_title,
-            streak_active,
+            streak,
         );
         
         (xp_to_add, dominant_class.clone())
@@ -902,11 +974,14 @@ async fn process_issues_event(
 
     let client = github::client::get_installation_client(&state.app_client, inst_id).await?;
 
-    github::state::update_leaderboard_with_retry(&client, owner, repo, username, |_stats| {
-        let xp_to_add = engine::calculator::calculate_issue_xp(&event);
+    github::state::update_leaderboard_with_retry(&client, owner, repo, username, |stats| {
+        let last_active = stats.iter()
+            .find(|u| u.username.eq_ignore_ascii_case(username))
+            .and_then(|u| u.last_active);
+        let streak = engine::calculator::calculate_streak_tier(last_active);
+        let xp_to_add = engine::calculator::calculate_issue_xp(&event, streak);
         (xp_to_add, None)
     }).await?;
-
     Ok(())
 }
 
@@ -927,11 +1002,14 @@ async fn process_issue_comment_event(
 
     let client = github::client::get_installation_client(&state.app_client, inst_id).await?;
 
-    github::state::update_leaderboard_with_retry(&client, owner, repo, username, |_stats| {
-        let xp_to_add = engine::calculator::calculate_comment_xp(&event);
+    github::state::update_leaderboard_with_retry(&client, owner, repo, username, |stats| {
+        let last_active = stats.iter()
+            .find(|u| u.username.eq_ignore_ascii_case(username))
+            .and_then(|u| u.last_active);
+        let streak = engine::calculator::calculate_streak_tier(last_active);
+        let xp_to_add = engine::calculator::calculate_comment_xp(&event, streak);
         (xp_to_add, None)
     }).await?;
-
     Ok(())
 }
 
@@ -952,11 +1030,14 @@ async fn process_pr_review_event(
 
     let client = github::client::get_installation_client(&state.app_client, inst_id).await?;
 
-    github::state::update_leaderboard_with_retry(&client, owner, repo, username, |_stats| {
-        let xp_to_add = engine::calculator::calculate_review_xp(&event);
+    github::state::update_leaderboard_with_retry(&client, owner, repo, username, |stats| {
+        let last_active = stats.iter()
+            .find(|u| u.username.eq_ignore_ascii_case(username))
+            .and_then(|u| u.last_active);
+        let streak = engine::calculator::calculate_streak_tier(last_active);
+        let xp_to_add = engine::calculator::calculate_review_xp(&event, streak);
         (xp_to_add, None)
     }).await?;
-
     Ok(())
 }
 
@@ -1125,4 +1206,36 @@ async fn process_discussion_comment_event(
         (xp_to_add, None)
     }).await?;
     Ok(())
+}
+
+async fn badge_handler(
+    axum::extract::Path(username): axum::extract::Path<String>,
+) -> impl IntoResponse {
+    let score_path = std::env::var("REPOGEE_SCORE_PATH").unwrap_or_else(|_| "SCORE.md".to_string());
+    let score_content = if std::path::Path::new(&score_path).exists() {
+        match std::fs::read_to_string(&score_path) {
+            Ok(content) => content,
+            Err(_) => github::parser::get_default_score_file(),
+        }
+    } else {
+        github::parser::get_default_score_file()
+    };
+
+    let stats = github::parser::parse_score_file(&score_content);
+    let normalized = username.trim_start_matches('@');
+
+    let user = stats.iter().find(|u| u.username.eq_ignore_ascii_case(normalized));
+
+    let svg = match user {
+        Some(u) => badge::generate_badge_svg(u.level, u.class.as_str()),
+        None => badge::generate_badge_svg(0, "Not Found"),
+    };
+
+    (
+        [
+            (axum::http::header::CONTENT_TYPE, "image/svg+xml"),
+            (axum::http::header::CACHE_CONTROL, "max-age=300"),
+        ],
+        svg,
+    )
 }
