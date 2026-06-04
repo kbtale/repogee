@@ -545,20 +545,29 @@ async fn onboard_handler(
     let owner = parts[0];
     let repo = parts[1];
 
-    let default_score = github::parser::get_default_score_file();
     let content_path = "SCORE.md";
-
-    octo
+    let exists = octo
         .repos(owner, repo)
-        .create_file(content_path, "chore: initialize repogee SCORE.md", default_score)
+        .get_content()
+        .path(content_path)
         .send()
         .await
-        .map_err(|e| {
-            (
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Failed to create SCORE.md on GitHub: {:?}", e),
-            )
-        })?;
+        .is_ok();
+
+    if !exists {
+        let default_score = github::parser::get_default_score_file();
+        octo
+            .repos(owner, repo)
+            .create_file(content_path, "chore: initialize repogee SCORE.md", default_score)
+            .send()
+            .await
+            .map_err(|e| {
+                (
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Failed to create SCORE.md on GitHub: {:?}", e),
+                )
+            })?;
+    }
 
     Ok((axum::http::StatusCode::OK, axum::Json(serde_json::json!({ "status": "success" }))))
 }
