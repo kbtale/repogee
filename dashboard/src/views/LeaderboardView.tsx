@@ -13,7 +13,6 @@ interface ActivityEvent {
   id: string
   title: string
   contributor: string
-  xp: number
   time: string
   rawDate: Date
   type: 'push' | 'pr_open' | 'review' | 'comment'
@@ -41,27 +40,26 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
   const [sortOrder, setSortOrder] = createSignal<'asc' | 'desc'>('desc')
   const [currentPage, setCurrentPage] = createSignal(1)
   const itemsPerPage = 5
+  const [searchQuery, setSearchQuery] = createSignal('')
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
-
-  const fallbackContributors: Contributor[] = [
-    { username: props.user.login, xp: 120, level: 2, class: 'BackendDeveloper', subclass: 'General Architect', last_active: '2026-05-28T10:30:00Z' },
-  ]
 
   onMount(async () => {
     const token = localStorage.getItem('token')
     
     try {
-      const res = await fetch(`${API_URL}/api/leaderboard`)
+      const res = await fetch(`${API_URL}/api/leaderboard?repo=${props.selectedRepo}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
       if (!res.ok) throw new Error()
       const data = await res.json()
       if (Array.isArray(data) && data.length > 0) {
         setContributors(data)
       } else {
-        setContributors(fallbackContributors)
+        setContributors([])
       }
     } catch (err) {
-      setContributors(fallbackContributors)
+      setContributors([])
     }
 
     try {
@@ -85,7 +83,6 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
             id: c.sha || String(index),
             title: c.commit.message.split('\n')[0],
             contributor: c.author?.login || c.commit.author.name || 'anonymous',
-            xp: 15,
             time: timeStr,
             rawDate: commitTime,
             type: 'push' as const,
@@ -110,7 +107,24 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
   const getActiveUser = () => {
     const list = contributors()
     const active = list.find(c => c.username.toLowerCase() === props.user.login.toLowerCase())
-    return active || (list.length > 0 ? list[0] : fallbackContributors[0])
+    return active || (list.length > 0 ? list[0] : { username: props.user.login, xp: 0, level: 1, class: 'Novice', subclass: 'Unranked', last_active: null })
+  }
+
+  const getWeeklyPace = () => {
+    const today = new Date()
+    const sevenDaysAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000)
+    const recentCommits = events().filter(e => e.rawDate && e.rawDate >= sevenDaysAgo)
+    const count = recentCommits.length
+    if (count === 0) return 'Inactive'
+    if (count < 3) return 'Low Activity'
+    if (count < 10) return 'Moderate Activity'
+    return 'High Activity'
+  }
+
+  const filteredContributors = () => {
+    const query = searchQuery().toLowerCase().trim()
+    if (!query) return contributors()
+    return contributors().filter(c => c.username.toLowerCase().includes(query))
   }
 
   const handleSort = () => {
@@ -222,6 +236,8 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
                 <input
                   type="text"
                   placeholder="Search..."
+                  value={searchQuery()}
+                  onInput={(e) => setSearchQuery(e.currentTarget.value)}
                   class="w-full pl-9 pr-4 py-1.5 bg-theme-bg border border-theme-border rounded-full text-xs text-theme-primary placeholder-theme-glaucous/50 focus:outline-none focus:border-theme-accent transition-all duration-150"
                 />
               </div>
@@ -291,7 +307,15 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
                     <h2 class="font-montserrat text-base sm:text-lg font-extrabold tracking-widest uppercase mb-6 text-theme-primary">RPG Rankings</h2>
                     
                     <div class="flex flex-col gap-3">
-                      <For each={contributors()}>
+                      <For
+                        each={filteredContributors()}
+                        fallback={
+                          <div class="py-8 text-center border border-dashed border-theme-border rounded-3xl bg-theme-bg">
+                            <svg class="w-8 h-8 text-theme-glaucous mb-2 mx-auto" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                            <p class="text-theme-secondary font-molengo text-xs italic">No contributors yet - onboard a repository to start tracking</p>
+                          </div>
+                        }
+                      >
                         {(contributor, index) => (
                           <div class="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-theme-bg border border-theme-border/40 rounded-3xl sm:rounded-full hover:border-theme-accent transition-all duration-200 gap-3">
                             <div class="flex items-center gap-3 min-w-0">
@@ -361,9 +385,6 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
                             </div>
 
                             <div class="flex items-center gap-3 shrink-0">
-                              <span class="text-[9px] text-[#070A13] font-montserrat font-bold bg-theme-accent px-2.5 py-1 rounded-full shrink-0">
-                                +{event.xp} XP
-                              </span>
                               <span class="text-[10px] text-theme-secondary font-hind hidden sm:inline">{event.time}</span>
                             </div>
                           </div>
@@ -417,7 +438,7 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
                       <div class="bg-theme-bg border border-theme-border/40 rounded-3xl p-4 flex flex-col justify-between">
                         <span class="text-[9px] text-theme-secondary font-molengo uppercase tracking-wider">Weekly Pace</span>
                         <div class="font-montserrat text-2xl font-extrabold text-theme-accent mt-2 uppercase tracking-wide">
-                          High Activity
+                          {getWeeklyPace()}
                         </div>
                       </div>
                     </div>
@@ -459,21 +480,28 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
                   <h2 class="font-montserrat text-base sm:text-lg font-extrabold tracking-widest uppercase mb-6 text-theme-primary">XP Contribution Analytics</h2>
                   <div class="flex flex-col gap-4">
                     <div class="flex items-center justify-between p-4 bg-theme-bg border border-theme-border/40 rounded-2xl">
-                      <span class="text-xs font-semibold text-theme-primary">Pull Requests</span>
+                      <span class="text-xs font-semibold text-theme-primary">Merged Pull Request (Base)</span>
                       <span class="text-xs font-bold text-theme-accent">50 XP</span>
                     </div>
                     <div class="flex items-center justify-between p-4 bg-theme-bg border border-theme-border/40 rounded-2xl">
-                      <span class="text-xs font-semibold text-theme-primary">Commits</span>
-                      <span class="text-xs font-bold text-theme-accent">15 XP</span>
+                      <span class="text-xs font-semibold text-theme-primary">Closed Issue (Base)</span>
+                      <span class="text-xs font-bold text-theme-accent">30 XP</span>
                     </div>
                     <div class="flex items-center justify-between p-4 bg-theme-bg border border-theme-border/40 rounded-2xl">
-                      <span class="text-xs font-semibold text-theme-primary">Issues Opened</span>
+                      <span class="text-xs font-semibold text-theme-primary">Approved Review (Base)</span>
+                      <span class="text-xs font-bold text-theme-accent">25 XP</span>
+                    </div>
+                    <div class="flex items-center justify-between p-4 bg-theme-bg border border-theme-border/40 rounded-2xl">
+                      <span class="text-xs font-semibold text-theme-primary">Opened Detailed Issue (Base)</span>
                       <span class="text-xs font-bold text-theme-accent">10 XP</span>
                     </div>
                     <div class="flex items-center justify-between p-4 bg-theme-bg border border-theme-border/40 rounded-2xl">
-                      <span class="text-xs font-semibold text-theme-primary">Review Comments</span>
+                      <span class="text-xs font-semibold text-theme-primary">Inline Review Comment (Base)</span>
                       <span class="text-xs font-bold text-theme-accent">5 XP</span>
                     </div>
+                    <p class="text-[10px] text-theme-secondary mt-2 leading-relaxed">
+                      Note: Additional XP bonuses are awarded for heavy refactoring, resolving merge conflicts, adding documentation, batch commits, and maintaining activity streaks.
+                    </p>
                   </div>
                 </div>
 
