@@ -29,11 +29,18 @@ export default function SetupView(props: SetupViewProps) {
 
   const filteredRepos = () => {
     const q = searchQuery().toLowerCase().trim()
-    if (!q) return props.repos
-    return props.repos.filter((repo) =>
-      repo.name.toLowerCase().includes(q) ||
-      (repo.description && repo.description.toLowerCase().includes(q))
-    )
+    let list = props.repos
+    if (q) {
+      list = props.repos.filter((repo) =>
+        repo.name.toLowerCase().includes(q) ||
+        (repo.description && repo.description.toLowerCase().includes(q))
+      )
+    }
+    return [...list].sort((a, b) => {
+      if (a.onboarded && !b.onboarded) return -1
+      if (!a.onboarded && b.onboarded) return 1
+      return a.name.localeCompare(b.name)
+    })
   }
 
   const handleOnboard = async (repoFullName: string) => {
