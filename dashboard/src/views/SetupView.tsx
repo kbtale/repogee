@@ -180,7 +180,7 @@ export default function SetupView(props: SetupViewProps) {
               <div class="bg-theme-card border border-theme-border rounded-3xl p-6 flex flex-col justify-between hover:border-theme-accent hover:shadow-lg transition-all duration-200">
                 <div>
                   <div class="flex items-center justify-between mb-3 gap-2">
-                    <span class="flex items-center gap-2 font-montserrat font-extrabold text-sm tracking-wide truncate max-w-[50%] text-theme-primary">
+                    <span class="flex items-center gap-2 font-montserrat font-extrabold text-sm tracking-wide truncate text-theme-primary flex-1 min-w-0">
                       {repo.private ? (
                         <svg class="w-3.5 h-3.5 text-theme-accent shrink-0" viewBox="0 0 16 16" fill="currentColor">
                           <path fill-rule="evenodd" d="M8 0a4 4 0 0 1 4 4v2.05a2.5 2.5 0 0 1 2 2.45v5a2.5 2.5 0 0 1-2.5 2.5h-7A2.5 2.5 0 0 1 2 13.5v-5a2.5 2.5 0 0 1 2-2.45V4a4 4 0 0 1 4-4m0 1a3 3 0 0 0-3 3v2h6V4a3 3 0 0 0-3-3"/>
