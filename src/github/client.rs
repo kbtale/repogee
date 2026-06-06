@@ -10,7 +10,7 @@ pub fn init_app_client() -> Result<Octocrab, anyhow::Error> {
         .map_err(|e| anyhow::anyhow!("GITHUB_APP_ID is not a valid u64: {}", e))?;
 
     let key_contents = if let Ok(env_key) = std::env::var("GITHUB_PRIVATE_KEY") {
-        env_key.into_bytes()
+        env_key.trim_matches('"').as_bytes().to_vec()
     } else {
         let key_path = std::env::var("GITHUB_PRIVATE_KEY_PATH")
             .map_err(|_| anyhow::anyhow!("Either GITHUB_PRIVATE_KEY or GITHUB_PRIVATE_KEY_PATH must be set"))?;
