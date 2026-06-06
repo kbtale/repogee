@@ -27,6 +27,17 @@ interface SetupViewProps {
 export default function SetupView(props: SetupViewProps) {
   const [searchQuery, setSearchQuery] = createSignal('')
   const [loadingRepo, setLoadingRepo] = createSignal<string | null>(null)
+  const [sortOrder, setSortOrder] = createSignal<'connected' | 'name' | 'contributors'>('connected')
+
+  const handleSortToggle = () => {
+    if (sortOrder() === 'connected') {
+      setSortOrder('name')
+    } else if (sortOrder() === 'name') {
+      setSortOrder('contributors')
+    } else {
+      setSortOrder('connected')
+    }
+  }
 
   const filteredRepos = () => {
     const q = searchQuery().toLowerCase().trim()
@@ -38,9 +49,18 @@ export default function SetupView(props: SetupViewProps) {
       )
     }
     return [...list].sort((a, b) => {
-      if (a.onboarded && !b.onboarded) return -1
-      if (!a.onboarded && b.onboarded) return 1
-      return a.name.localeCompare(b.name)
+      if (sortOrder() === 'connected') {
+        if (a.onboarded && !b.onboarded) return -1
+        if (!a.onboarded && b.onboarded) return 1
+        return a.name.localeCompare(b.name)
+      } else if (sortOrder() === 'contributors') {
+        const countA = a.contributors_count || 0
+        const countB = b.contributors_count || 0
+        if (countA !== countB) return countB - countA;
+        return a.name.localeCompare(b.name)
+      } else {
+        return a.name.localeCompare(b.name)
+      }
     })
   }
 
@@ -119,19 +139,28 @@ export default function SetupView(props: SetupViewProps) {
             </p>
           </div>
 
-          <div class="relative w-full md:w-80">
-            <span class="absolute left-4 top-1/2 -translate-y-1/2 text-theme-glaucous flex items-center justify-center">
-              <svg class="w-4 h-4" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001q.044.06.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1 1 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0"/>
-              </svg>
-            </span>
-            <input
-              type="text"
-              placeholder="Search repositories..."
-              value={searchQuery()}
-              onInput={(e) => setSearchQuery(e.currentTarget.value)}
-              class="w-full pl-11 pr-4 py-3 bg-theme-card border border-theme-border rounded-full text-theme-primary placeholder-theme-glaucous/50 font-hind focus:outline-none focus:border-theme-accent transition-all duration-150 text-sm"
-            />
+          <div class="flex gap-3 w-full md:w-auto items-center">
+            <div class="relative w-full md:w-80">
+              <span class="absolute left-4 top-1/2 -translate-y-1/2 text-theme-glaucous flex items-center justify-center">
+                <svg class="w-4 h-4" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001q.044.06.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1 1 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0"/>
+                </svg>
+              </span>
+              <input
+                type="text"
+                placeholder="Search repositories..."
+                value={searchQuery()}
+                onInput={(e) => setSearchQuery(e.currentTarget.value)}
+                class="w-full pl-11 pr-4 py-3 bg-theme-card border border-theme-border rounded-full text-theme-primary placeholder-theme-glaucous/50 font-hind focus:outline-none focus:ring-0 focus:shadow-none focus:border-theme-accent transition-[border-color] duration-150 text-sm"
+              />
+            </div>
+            <button
+              onClick={handleSortToggle}
+              class="flex items-center gap-1.5 text-[10px] text-theme-secondary border border-theme-border px-4 py-3.5 rounded-full hover:bg-theme-border-sub transition-all uppercase tracking-widest font-bold cursor-pointer shrink-0"
+            >
+              <span>Sort: {sortOrder() === 'connected' ? 'Connected' : sortOrder() === 'name' ? 'Name' : 'Contributors'}</span>
+              <svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="currentColor"><path d="M11.5 15a.5.5 0 0 0 .5-.5V2.707l3.146 3.147a.5.5 0 0 0 .708-.708l-4-4a.5.5 0 0 0-.708 0l-4 4a.5.5 0 1 0 .708.708L11 2.707V14.5a.5.5 0 0 0 .5-.5m-7-14a.5.5 0 0 1 .5.5v11.793l3.146-3.147a.5.5 0 0 1 .708.708l-4 4a.5.5 0 0 1-.708 0l-4-4a.5.5 0 0 1 .708-.708L4 13.293V1.5a.5.5 0 0 1 .5-.5"/></svg>
+            </button>
           </div>
         </div>
 
@@ -151,7 +180,7 @@ export default function SetupView(props: SetupViewProps) {
               <div class="bg-theme-card border border-theme-border rounded-3xl p-6 flex flex-col justify-between hover:border-theme-accent hover:shadow-lg transition-all duration-200">
                 <div>
                   <div class="flex items-center justify-between mb-3 gap-2">
-                    <span class="flex items-center gap-2 font-montserrat font-extrabold text-sm tracking-wide truncate max-w-[70%] text-theme-primary">
+                    <span class="flex items-center gap-2 font-montserrat font-extrabold text-sm tracking-wide truncate max-w-[50%] text-theme-primary">
                       {repo.private ? (
                         <svg class="w-3.5 h-3.5 text-theme-accent shrink-0" viewBox="0 0 16 16" fill="currentColor">
                           <path fill-rule="evenodd" d="M8 0a4 4 0 0 1 4 4v2.05a2.5 2.5 0 0 1 2 2.45v5a2.5 2.5 0 0 1-2.5 2.5h-7A2.5 2.5 0 0 1 2 13.5v-5a2.5 2.5 0 0 1 2-2.45V4a4 4 0 0 1 4-4m0 1a3 3 0 0 0-3 3v2h6V4a3 3 0 0 0-3-3"/>
@@ -163,21 +192,20 @@ export default function SetupView(props: SetupViewProps) {
                       )}
                       {repo.name}
                     </span>
-                    <span class={`text-[8px] uppercase font-bold tracking-widest px-2.5 py-1 rounded-full border shrink-0 ${repo.onboarded ? "bg-theme-accent/10 text-theme-accent border-theme-accent/20" : "bg-theme-border-sub text-theme-secondary border-theme-border"}`}>
-                      {repo.onboarded ? "connected" : "ready"}
-                    </span>
+                    <div class="flex items-center gap-2 shrink-0">
+                      <Show when={repo.contributors_count !== undefined}>
+                        <span class="text-[8px] uppercase font-bold tracking-widest px-2 py-0.5 rounded-full border bg-theme-accent/10 text-theme-accent border-theme-accent/20">
+                          {repo.contributors_count || 0} users
+                        </span>
+                      </Show>
+                      <span class={`text-[8px] uppercase font-bold tracking-widest px-2.5 py-1 rounded-full border shrink-0 ${repo.onboarded ? "bg-theme-accent/10 text-theme-accent border-theme-accent/20" : "bg-theme-border-sub text-theme-secondary border-theme-border"}`}>
+                        {repo.onboarded ? "connected" : "ready"}
+                      </span>
+                    </div>
                   </div>
                   <p class="text-xs text-theme-secondary font-hind line-clamp-2 min-h-[32px] mb-6 leading-relaxed">
                     {repo.description || "No description provided."}
                   </p>
-                  <Show when={repo.onboarded}>
-                    <div class="text-[9px] text-theme-secondary uppercase font-bold tracking-wider mb-4 flex items-center gap-1.5">
-                      <svg class="w-3.5 h-3.5 text-theme-glaucous" viewBox="0 0 20 20" fill="currentColor">
-                        <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/>
-                      </svg>
-                      {repo.contributors_count || 0} Contributors
-                    </div>
-                  </Show>
                 </div>
 
                 <div>
