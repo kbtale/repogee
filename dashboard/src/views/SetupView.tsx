@@ -139,8 +139,8 @@ export default function SetupView(props: SetupViewProps) {
             </p>
           </div>
 
-          <div class="flex gap-3 w-full md:w-auto items-center">
-            <div class="relative w-full md:w-80">
+          <div class="flex flex-col sm:flex-row gap-4 w-full md:w-auto sm:items-center">
+            <div class="relative w-full sm:w-80">
               <span class="absolute left-4 top-1/2 -translate-y-1/2 text-theme-glaucous flex items-center justify-center">
                 <svg class="w-4 h-4" viewBox="0 0 16 16" fill="currentColor">
                   <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001q.044.06.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1 1 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0"/>
@@ -156,7 +156,7 @@ export default function SetupView(props: SetupViewProps) {
             </div>
             <button
               onClick={handleSortToggle}
-              class="flex items-center gap-1.5 text-[10px] text-theme-secondary border border-theme-border px-4 py-3.5 rounded-full hover:bg-theme-border-sub transition-all uppercase tracking-widest font-bold cursor-pointer shrink-0"
+              class="flex items-center justify-center gap-1.5 text-[10px] text-theme-secondary border border-theme-border px-4 py-3.5 rounded-full hover:bg-theme-border-sub transition-all uppercase tracking-widest font-bold cursor-pointer shrink-0 w-full sm:w-auto"
             >
               <span>Sort: {sortOrder() === 'connected' ? 'Connected' : sortOrder() === 'name' ? 'Name' : 'Contributors'}</span>
               <svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="currentColor"><path d="M11.5 15a.5.5 0 0 0 .5-.5V2.707l3.146 3.147a.5.5 0 0 0 .708-.708l-4-4a.5.5 0 0 0-.708 0l-4 4a.5.5 0 1 0 .708.708L11 2.707V14.5a.5.5 0 0 0 .5-.5m-7-14a.5.5 0 0 1 .5.5v11.793l3.146-3.147a.5.5 0 0 1 .708.708l-4 4a.5.5 0 0 1-.708 0l-4-4a.5.5 0 0 1 .708-.708L4 13.293V1.5a.5.5 0 0 1 .5-.5"/></svg>
@@ -194,11 +194,11 @@ export default function SetupView(props: SetupViewProps) {
                     </span>
                     <div class="flex items-center gap-2 shrink-0">
                       <Show when={repo.contributors_count !== undefined}>
-                        <span class="text-[8px] uppercase font-bold tracking-widest px-2 py-0.5 rounded-full border bg-theme-accent/10 text-theme-accent border-theme-accent/20">
+                        <span class="badge badge-accent">
                           {repo.contributors_count || 0} users
                         </span>
                       </Show>
-                      <span class={`text-[8px] uppercase font-bold tracking-widest px-2.5 py-1 rounded-full border shrink-0 ${repo.onboarded ? "bg-theme-accent/10 text-theme-accent border-theme-accent/20" : "bg-theme-border-sub text-theme-secondary border-theme-border"}`}>
+                      <span class={`badge shrink-0 ${repo.onboarded ? "badge-accent" : "badge-secondary"}`}>
                         {repo.onboarded ? "connected" : "ready"}
                       </span>
                     </div>
