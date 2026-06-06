@@ -191,7 +191,7 @@ export default function SetupView(props: SetupViewProps) {
                     ) : repo.onboarded ? (
                       "VIEW LEADERBOARD"
                     ) : (
-                      "CONNECT BOARD"
+                      "CONNECT REPO"
                     )}
                   </button>
                 </div>
