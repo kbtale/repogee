@@ -111,6 +111,10 @@ export default function App() {
         )
       )
       setSelectedRepo(repoFullName)
+    } else {
+      const errText = await res.text();
+      console.error("Onboarding failed:", res.status, errText);
+      alert(`Failed to connect repository: ${errText || res.statusText}`);
     }
   }
 
