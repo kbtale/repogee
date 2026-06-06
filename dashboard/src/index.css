@@ -76,3 +76,29 @@ button {
   font: inherit;
   outline: none;
 }
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.badge-accent {
+  background-color: rgba(254, 95, 85, 0.1);
+  color: var(--theme-accent);
+  border-color: rgba(254, 95, 85, 0.2);
+}
+
+.badge-secondary {
+  background-color: var(--theme-border-sub);
+  color: var(--theme-secondary);
+  border-color: var(--theme-border);
+}
