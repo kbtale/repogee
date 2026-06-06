@@ -28,6 +28,7 @@ export default function SetupView(props: SetupViewProps) {
   const [searchQuery, setSearchQuery] = createSignal('')
   const [loadingRepo, setLoadingRepo] = createSignal<string | null>(null)
   const [sortOrder, setSortOrder] = createSignal<'connected' | 'name' | 'contributors'>('connected')
+  const [sortAsc, setSortAsc] = createSignal(false)
 
   const handleSortToggle = () => {
     if (sortOrder() === 'connected') {
@@ -49,18 +50,20 @@ export default function SetupView(props: SetupViewProps) {
       )
     }
     return [...list].sort((a, b) => {
+      let res = 0
       if (sortOrder() === 'connected') {
-        if (a.onboarded && !b.onboarded) return -1
-        if (!a.onboarded && b.onboarded) return 1
-        return a.name.localeCompare(b.name)
+        if (a.onboarded && !b.onboarded) res = -1
+        else if (!a.onboarded && b.onboarded) res = 1
+        else res = a.name.localeCompare(b.name)
       } else if (sortOrder() === 'contributors') {
         const countA = a.contributors_count || 0
         const countB = b.contributors_count || 0
-        if (countA !== countB) return countB - countA;
-        return a.name.localeCompare(b.name)
+        if (countA !== countB) res = countB - countA
+        else res = a.name.localeCompare(b.name)
       } else {
-        return a.name.localeCompare(b.name)
+        res = a.name.localeCompare(b.name)
       }
+      return sortAsc() ? -res : res
     })
   }
 
@@ -139,7 +142,7 @@ export default function SetupView(props: SetupViewProps) {
             </p>
           </div>
 
-          <div class="flex flex-col sm:flex-row gap-4 w-full md:w-auto sm:items-center">
+          <div class="flex flex-col sm:flex-row gap-4 w-full md:w-auto sm:items-center" style="gap: 1rem;">
             <div class="relative w-full sm:w-80">
               <span class="absolute left-4 top-1/2 -translate-y-1/2 text-theme-glaucous flex items-center justify-center">
                 <svg class="w-4 h-4" viewBox="0 0 16 16" fill="currentColor">
@@ -154,13 +157,32 @@ export default function SetupView(props: SetupViewProps) {
                 class="w-full pl-11 pr-4 py-3 bg-theme-card border border-theme-border rounded-full text-theme-primary placeholder-theme-glaucous/50 font-hind focus:outline-none focus:ring-0 focus:shadow-none focus:border-theme-accent transition-[border-color] duration-150 text-sm"
               />
             </div>
-            <button
-              onClick={handleSortToggle}
-              class="flex items-center justify-center gap-1.5 text-[10px] text-theme-secondary border border-theme-border px-4 py-3.5 rounded-full hover:bg-theme-border-sub transition-all uppercase tracking-widest font-bold cursor-pointer shrink-0 w-full sm:w-auto"
-            >
-              <span>Sort: {sortOrder() === 'connected' ? 'Connected' : sortOrder() === 'name' ? 'Name' : 'Contributors'}</span>
-              <svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="currentColor"><path d="M11.5 15a.5.5 0 0 0 .5-.5V2.707l3.146 3.147a.5.5 0 0 0 .708-.708l-4-4a.5.5 0 0 0-.708 0l-4 4a.5.5 0 1 0 .708.708L11 2.707V14.5a.5.5 0 0 0 .5-.5m-7-14a.5.5 0 0 1 .5.5v11.793l3.146-3.147a.5.5 0 0 1 .708.708l-4 4a.5.5 0 0 1-.708 0l-4-4a.5.5 0 0 1 .708-.708L4 13.293V1.5a.5.5 0 0 1 .5-.5"/></svg>
-            </button>
+            <div class="flex gap-2 items-center w-full sm:w-auto" style="gap: 0.5rem;">
+              <button
+                onClick={handleSortToggle}
+                class="flex items-center justify-center gap-1.5 text-[10px] text-theme-secondary border border-theme-border px-4 py-3.5 rounded-full hover:bg-theme-border-sub transition-all uppercase tracking-widest font-bold cursor-pointer shrink-0 flex-1 sm:flex-initial"
+              >
+                <span>Sort: {sortOrder() === 'connected' ? 'Connected' : sortOrder() === 'name' ? 'Name' : 'Contributors'}</span>
+              </button>
+              <button
+                onClick={() => setSortAsc(!sortAsc())}
+                class="flex items-center justify-center text-theme-secondary border border-theme-border p-3.5 rounded-full hover:bg-theme-border-sub transition-all cursor-pointer shrink-0"
+                title={sortAsc() ? "Sort Ascending" : "Sort Descending"}
+              >
+                <Show
+                  when={sortAsc()}
+                  fallback={
+                    <svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="currentColor">
+                      <path fill-rule="evenodd" d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708"/>
+                    </svg>
+                  }
+                >
+                  <svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="currentColor">
+                    <path fill-rule="evenodd" d="M7.646 4.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1-.708.708L8 5.707l-5.646 5.647a.5.5 0 0 1-.708-.708z"/>
+                  </svg>
+                </Show>
+              </button>
+            </div>
           </div>
         </div>
 
