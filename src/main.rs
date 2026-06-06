@@ -518,6 +518,11 @@ async fn repos_handler(
                         }
                     }
                 }
+                if !onboarded {
+                    if let Ok(contrib_page) = octo.repos(owner, r_name).list_contributors().send().await {
+                        contributors_count = Some(contrib_page.items.len() as u32);
+                    }
+                }
             }
             GithubRepoInfo {
                 id: repo.id.into_inner(),
