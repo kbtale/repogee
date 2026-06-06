@@ -464,6 +464,7 @@ pub struct GithubRepoInfo {
     pub description: Option<String>,
     pub private: bool,
     pub onboarded: bool,
+    pub contributors_count: Option<u32>,
 }
 
 async fn repos_handler(
@@ -498,6 +499,7 @@ async fn repos_handler(
             let full_name = repo.full_name.clone().unwrap_or_default();
             let parts: Vec<&str> = full_name.split('/').collect();
             let mut onboarded = false;
+            let mut contributors_count = None;
             if parts.len() == 2 {
                 let owner = parts[0];
                 let r_name = parts[1];
@@ -507,8 +509,14 @@ async fn repos_handler(
                     .path("SCORE.md")
                     .send()
                     .await;
-                if res.is_ok() {
-                    onboarded = true;
+                if let Ok(content_items) = res {
+                    if let Some(file_content) = content_items.items.first() {
+                        if let Some(decoded) = file_content.decoded_content() {
+                            onboarded = true;
+                            let stats = github::parser::parse_score_file(&decoded);
+                            contributors_count = Some(stats.len() as u32);
+                        }
+                    }
                 }
             }
             GithubRepoInfo {
@@ -518,6 +526,7 @@ async fn repos_handler(
                 description: repo.description,
                 private: repo.r#private.unwrap_or(false),
                 onboarded,
+                contributors_count,
             }
         });
     }
