@@ -238,7 +238,7 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
                   placeholder="Search..."
                   value={searchQuery()}
                   onInput={(e) => setSearchQuery(e.currentTarget.value)}
-                  class="w-full pl-9 pr-4 py-1.5 bg-theme-bg border border-theme-border rounded-full text-xs text-theme-primary placeholder-theme-glaucous/50 focus:outline-none focus:border-theme-accent transition-all duration-150"
+                  class="w-full pl-9 pr-4 py-1.5 bg-theme-bg border border-theme-border rounded-full text-xs text-theme-primary placeholder-theme-glaucous/50 focus:outline-none focus:ring-0 focus:shadow-none focus:border-theme-accent transition-[border-color] duration-150"
                 />
               </div>
               

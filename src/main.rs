@@ -464,6 +464,7 @@ pub struct GithubRepoInfo {
     pub description: Option<String>,
     pub private: bool,
     pub onboarded: bool,
+    pub contributors_count: Option<u32>,
 }
 
 async fn repos_handler(
@@ -498,6 +499,7 @@ async fn repos_handler(
             let full_name = repo.full_name.clone().unwrap_or_default();
             let parts: Vec<&str> = full_name.split('/').collect();
             let mut onboarded = false;
+            let mut contributors_count = None;
             if parts.len() == 2 {
                 let owner = parts[0];
                 let r_name = parts[1];
@@ -507,8 +509,14 @@ async fn repos_handler(
                     .path("SCORE.md")
                     .send()
                     .await;
-                if res.is_ok() {
-                    onboarded = true;
+                if let Ok(content_items) = res {
+                    if let Some(file_content) = content_items.items.first() {
+                        if let Some(decoded) = file_content.decoded_content() {
+                            onboarded = true;
+                            let stats = github::parser::parse_score_file(&decoded);
+                            contributors_count = Some(stats.len() as u32);
+                        }
+                    }
                 }
             }
             GithubRepoInfo {
@@ -518,6 +526,7 @@ async fn repos_handler(
                 description: repo.description,
                 private: repo.r#private.unwrap_or(false),
                 onboarded,
+                contributors_count,
             }
         });
     }
@@ -547,14 +556,9 @@ async fn onboard_handler(
         .and_then(|h| h.to_str().ok())
         .ok_or_else(|| (StatusCode::UNAUTHORIZED, "Missing Authorization header".to_string()))?;
 
-    let token = auth_header
+    let _token = auth_header
         .strip_prefix("Bearer ")
         .ok_or_else(|| (StatusCode::BAD_REQUEST, "Invalid Authorization token format".to_string()))?;
-
-    let octo = octocrab::Octocrab::builder()
-        .personal_token(token.to_string())
-        .build()
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to build GitHub client: {:?}", e)))?;
 
     let parts: Vec<&str> = payload.repo_full_name.split('/').collect();
     if parts.len() != 2 {
@@ -562,6 +566,28 @@ async fn onboard_handler(
     }
     let owner = parts[0];
     let repo = parts[1];
+
+    let app_id_str = std::env::var("GITHUB_APP_ID")
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "GITHUB_APP_ID not set".to_string()))?;
+    let app_id = app_id_str.parse::<u64>()
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "GITHUB_APP_ID is not a valid number".to_string()))?;
+    let private_key_pem = std::env::var("GITHUB_PRIVATE_KEY")
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "GITHUB_PRIVATE_KEY not set".to_string()))?;
+    let private_key_pem = private_key_pem.trim_matches('"');
+    let key = jsonwebtoken::EncodingKey::from_rsa_pem(private_key_pem.as_bytes())
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Invalid private key: {:?}", e)))?;
+    let app_client = octocrab::Octocrab::builder()
+        .app(octocrab::models::AppId(app_id), key)
+        .build()
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to build app client: {:?}", e)))?;
+    let installation = app_client
+        .apps()
+        .get_repository_installation(owner, repo)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to get repository installation: {:?}", e)))?;
+    let octo = app_client
+        .installation(installation.id)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to build installation client: {:?}", e)))?;
 
     let content_path = "SCORE.md";
     let exists = octo
