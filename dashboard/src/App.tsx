@@ -20,6 +20,7 @@ export default function App() {
   const [selectedRepo, setSelectedRepo] = createSignal<string | null>(null)
   const [theme, setTheme] = createSignal<'dark' | 'light'>('dark')
   const [installModalUrl, setInstallModalUrl] = createSignal<string | null>(null)
+  const [installModalRepo, setInstallModalRepo] = createSignal<string | null>(null)
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
 
@@ -118,8 +119,9 @@ export default function App() {
       try {
         const errJson = JSON.parse(errText);
         if (errJson.error === 'not_installed' && errJson.install_url) {
-          setInstallModalUrl(errJson.install_url);
-          return;
+          setInstallModalRepo(repoFullName)
+          setInstallModalUrl(errJson.install_url)
+          return
         }
       } catch (_) {}
       alert(`Failed to connect repository: ${errText || res.statusText}`);
@@ -181,7 +183,7 @@ export default function App() {
                   GitHub App Access Required
                 </h3>
                 <p class="text-xs text-theme-secondary font-hind leading-relaxed">
-                  The Repogee GitHub App is not installed on this repository. Please configure the app on GitHub to select this repository and grant access.
+                  To connect <strong class="text-theme-primary">{installModalRepo()}</strong>, please click <strong class="text-theme-primary">Open Settings</strong>. On GitHub, select your account or organization. Under <strong class="text-theme-primary">Repository access</strong>, choose <strong class="text-theme-primary">All repositories</strong> or add <strong class="text-theme-primary">{installModalRepo()?.split('/')[1]}</strong> to the list of selected repositories. You can add multiple repositories at the same time.
                 </p>
               </div>
               <div class="flex gap-3 justify-end items-center" style="gap: 0.75rem;">
