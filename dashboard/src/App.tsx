@@ -114,6 +114,15 @@ export default function App() {
     } else {
       const errText = await res.text();
       console.error("Onboarding failed:", res.status, errText);
+      try {
+        const errJson = JSON.parse(errText);
+        if (errJson.error === 'not_installed' && errJson.install_url) {
+          if (confirm("The Repogee GitHub App is not installed on this repository. Would you like to open the installation page to grant access?")) {
+            window.open(errJson.install_url, '_blank');
+          }
+          return;
+        }
+      } catch (_) {}
       alert(`Failed to connect repository: ${errText || res.statusText}`);
     }
   }

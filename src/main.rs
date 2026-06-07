@@ -585,11 +585,34 @@ async fn onboard_handler(
         .app(octocrab::models::AppId(app_id), key)
         .build()
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to build app client: {:?}", e)))?;
-    let installation = app_client
+    let installation = match app_client
         .apps()
         .get_repository_installation(owner, repo)
         .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to get repository installation: {:?}", e)))?;
+    {
+        Ok(inst) => inst,
+        Err(e) => {
+            let is_404 = if let octocrab::Error::GitHub { source, .. } = &e {
+                source.status_code.as_u16() == 404
+            } else {
+                false
+            };
+            if is_404 {
+                let mut install_url = "https://github.com/apps/repogee".to_string();
+                if let Ok(app_info) = app_client.get::<serde_json::Value, _, _>("/app", None::<&()>).await {
+                    if let Some(html_url) = app_info.get("html_url").and_then(|v| v.as_str()) {
+                        install_url = format!("{}/installations/new", html_url);
+                    }
+                }
+                let body = format!(
+                    "{{\"error\":\"not_installed\",\"message\":\"The GitHub App is not installed on this repository.\",\"install_url\":\"{}\"}}",
+                    install_url
+                );
+                return Err((StatusCode::FORBIDDEN, body));
+            }
+            return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to get repository installation: {:?}", e)));
+        }
+    };
     let octo = app_client
         .installation(installation.id)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to build installation client: {:?}", e)))?;
