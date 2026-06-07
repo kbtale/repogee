@@ -1,4 +1,4 @@
-import { createSignal, onMount, Switch, Match } from 'solid-js'
+import { createSignal, onMount, Switch, Match, Show } from 'solid-js'
 import LandingView from './views/LandingView'
 import SetupView from './views/SetupView'
 import LeaderboardView from './views/LeaderboardView'
@@ -19,6 +19,7 @@ export default function App() {
   const [repos, setRepos] = createSignal<Repo[]>([])
   const [selectedRepo, setSelectedRepo] = createSignal<string | null>(null)
   const [theme, setTheme] = createSignal<'dark' | 'light'>('dark')
+  const [installModalUrl, setInstallModalUrl] = createSignal<string | null>(null)
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
 
@@ -117,9 +118,7 @@ export default function App() {
       try {
         const errJson = JSON.parse(errText);
         if (errJson.error === 'not_installed' && errJson.install_url) {
-          if (confirm("The Repogee GitHub App is not installed on this repository. Would you like to open the installation page to grant access?")) {
-            window.open(errJson.install_url, '_blank');
-          }
+          setInstallModalUrl(errJson.install_url);
           return;
         }
       } catch (_) {}
@@ -136,40 +135,76 @@ export default function App() {
   }
 
   return (
-    <Switch>
-      <Match when={loading()}>
-        <div class="min-h-screen bg-theme-bg flex flex-col items-center justify-center text-theme-primary font-hind">
-          <span class="animate-spin i-ph-circle-notch-bold text-4xl text-theme-accent mb-4"></span>
-          <p class="text-theme-secondary font-molengo text-lg">Authenticating with GitHub...</p>
-        </div>
-      </Match>
-      <Match when={view() === 'landing' && !loading()}>
-        <LandingView onLogin={handleLogin} theme={theme()} onToggleTheme={toggleTheme} />
-      </Match>
-      <Match when={view() === 'setup' && !loading() && user()}>
-        <SetupView
-          user={user()!}
-          repos={repos()}
-          theme={theme()}
-          onToggleTheme={toggleTheme}
-          onOnboard={handleOnboard}
-          onViewLeaderboard={(repoFullName) => {
-            setSelectedRepo(repoFullName)
-            setView('leaderboard')
-          }}
-          onLogout={handleLogout}
-        />
-      </Match>
-      <Match when={view() === 'leaderboard' && !loading() && user() && selectedRepo()}>
-        <LeaderboardView
-          user={user()!}
-          selectedRepo={selectedRepo()!}
-          theme={theme()}
-          onToggleTheme={toggleTheme}
-          onBack={() => setView('setup')}
-          onLogout={handleLogout}
-        />
-      </Match>
-    </Switch>
+    <>
+      <Switch>
+        <Match when={loading()}>
+          <div class="min-h-screen bg-theme-bg flex flex-col items-center justify-center text-theme-primary font-hind">
+            <span class="animate-spin i-ph-circle-notch-bold text-4xl text-theme-accent mb-4"></span>
+            <p class="text-theme-secondary font-molengo text-lg">Authenticating with GitHub...</p>
+          </div>
+        </Match>
+        <Match when={view() === 'landing' && !loading()}>
+          <LandingView onLogin={handleLogin} theme={theme()} onToggleTheme={toggleTheme} />
+        </Match>
+        <Match when={view() === 'setup' && !loading() && user()}>
+          <SetupView
+            user={user()!}
+            repos={repos()}
+            theme={theme()}
+            onToggleTheme={toggleTheme}
+            onOnboard={handleOnboard}
+            onViewLeaderboard={(repoFullName) => {
+              setSelectedRepo(repoFullName)
+              setView('leaderboard')
+            }}
+            onLogout={handleLogout}
+          />
+        </Match>
+        <Match when={view() === 'leaderboard' && !loading() && user() && selectedRepo()}>
+          <LeaderboardView
+            user={user()!}
+            selectedRepo={selectedRepo()!}
+            theme={theme()}
+            onToggleTheme={toggleTheme}
+            onBack={() => setView('setup')}
+            onLogout={handleLogout}
+          />
+        </Match>
+      </Switch>
+
+      <Show when={installModalUrl()}>
+        {(url) => (
+          <div class="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            <div class="bg-theme-card border border-theme-border rounded-3xl p-8 max-w-md w-full mx-4 shadow-2xl flex flex-col gap-6">
+              <div>
+                <h3 class="font-montserrat text-xl font-extrabold text-theme-primary mb-2 uppercase tracking-wide">
+                  GitHub App Access Required
+                </h3>
+                <p class="text-xs text-theme-secondary font-hind leading-relaxed">
+                  The Repogee GitHub App is not installed on this repository. Please configure the app on GitHub to select this repository and grant access.
+                </p>
+              </div>
+              <div class="flex gap-3 justify-end items-center" style="gap: 0.75rem;">
+                <button
+                  onClick={() => setInstallModalUrl(null)}
+                  class="px-5 py-3 border border-theme-border rounded-full font-montserrat font-bold text-[10px] tracking-widest uppercase text-theme-secondary hover:bg-theme-border-sub hover:text-theme-primary transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    window.open(url(), '_blank');
+                    setInstallModalUrl(null);
+                  }}
+                  class="px-5 py-3 bg-theme-accent hover:bg-theme-primary hover:text-theme-bg text-[#070A13] rounded-full font-montserrat font-bold text-[10px] tracking-widest uppercase transition-all cursor-pointer"
+                >
+                  Open Settings
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </Show>
+    </>
   )
 }

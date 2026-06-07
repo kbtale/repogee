@@ -604,6 +604,13 @@ async fn onboard_handler(
                         install_url = format!("{}/installations/new", html_url);
                     }
                 }
+                if let Ok(inst_page) = app_client.apps().installations().send().await {
+                    if let Some(matching_inst) = inst_page.items.into_iter().find(|inst| {
+                        inst.account.login.eq_ignore_ascii_case(owner)
+                    }) {
+                        install_url = matching_inst.html_url.clone().unwrap_or(install_url);
+                    }
+                }
                 let body = format!(
                     "{{\"error\":\"not_installed\",\"message\":\"The GitHub App is not installed on this repository.\",\"install_url\":\"{}\"}}",
                     install_url
