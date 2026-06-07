@@ -174,7 +174,7 @@ export default function App() {
 
       <Show when={installModalUrl()}>
         {(url) => (
-          <div class="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div class="fixed inset-0 z-[100] flex items-center justify-center bg-black/60">
             <div class="bg-theme-card border border-theme-border rounded-3xl p-8 max-w-md w-full mx-4 shadow-2xl flex flex-col gap-6">
               <div>
                 <h3 class="font-montserrat text-xl font-extrabold text-theme-primary mb-2 uppercase tracking-wide">
