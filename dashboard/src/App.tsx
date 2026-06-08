@@ -196,7 +196,17 @@ export default function App() {
                 <button
                   onClick={() => {
                     window.open(url(), '_blank');
+                    const repoName = installModalRepo();
                     setInstallModalUrl(null);
+                    if (repoName) {
+                      const onFocus = () => {
+                        window.removeEventListener('focus', onFocus);
+                        handleOnboard(repoName);
+                      };
+                      setTimeout(() => {
+                        window.addEventListener('focus', onFocus);
+                      }, 1000);
+                    }
                   }}
                   class="px-5 py-3 bg-theme-accent hover:bg-theme-primary hover:text-theme-bg text-[#070A13] rounded-full font-montserrat font-bold text-[10px] tracking-widest uppercase transition-all cursor-pointer"
                 >

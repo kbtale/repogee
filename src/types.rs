@@ -108,8 +108,11 @@ pub struct PushCommit {
     pub id: String,
     pub message: String,
     pub author: CommitAuthor,
+    #[serde(default)]
     pub added: Vec<String>,
+    #[serde(default)]
     pub removed: Vec<String>,
+    #[serde(default)]
     pub modified: Vec<String>,
 }
 
