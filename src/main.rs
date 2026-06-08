@@ -656,6 +656,61 @@ async fn onboard_handler(
         }
     }
 
+    let workflow_path = ".github/workflows/repogee.yml";
+    let workflow_content = "name: Repogee Leaderboard\n\non:\n  pull_request:\n    types: [opened, closed]\n  issues:\n    types: [opened, closed]\n  issue_comment:\n    types: [created]\n  push:\n    branches: [main]\n\npermissions:\n  contents: write\n\njobs:\n  gamify:\n    runs-on: ubuntu-latest\n    steps:\n      - name: Checkout Code\n        uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n\n      - name: Run Repogee Leaderboard\n        uses: kbtale/repogee@main\n";
+
+    let workflow_res = octo
+        .repos(owner, repo)
+        .get_content()
+        .path(workflow_path)
+        .send()
+        .await;
+
+    match workflow_res {
+        Ok(content_items) => {
+            if let Some(file_content) = content_items.items.first() {
+                let current_content = file_content.decoded_content();
+                let needs_update = match current_content {
+                    Some(decoded) => decoded != workflow_content,
+                    None => true,
+                };
+                if needs_update {
+                    if let Err(e) = octo
+                        .repos(owner, repo)
+                        .update_file(
+                            workflow_path,
+                            "chore: update repogee workflow",
+                            workflow_content,
+                            file_content.sha.clone(),
+                        )
+                        .send()
+                        .await
+                    {
+                        warn!("Failed to update repogee.yml in {}/{}: {:?}", owner, repo, e);
+                        return Err((
+                            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                            format!("Failed to update repogee.yml on GitHub: {:?}", e),
+                        ));
+                    }
+                }
+            }
+        }
+        Err(_) => {
+            if let Err(e) = octo
+                .repos(owner, repo)
+                .create_file(workflow_path, "chore: create repogee workflow", workflow_content)
+                .send()
+                .await
+            {
+                warn!("Failed to create repogee.yml in {}/{}: {:?}", owner, repo, e);
+                return Err((
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Failed to create repogee.yml on GitHub: {:?}", e),
+                ));
+            }
+        }
+    }
+
     let webhook_url = format!("{}/webhook", state.base_url);
     let hook_config = octocrab::models::hooks::Config {
         url: webhook_url.clone(),
