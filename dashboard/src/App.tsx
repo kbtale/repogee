@@ -107,12 +107,16 @@ export default function App() {
     })
 
     if (res.ok) {
+      const wasOnboarded = repos().find((r) => r.full_name === repoFullName)?.onboarded
       setRepos(
         repos().map((r) =>
           r.full_name === repoFullName ? { ...r, onboarded: true } : r
         )
       )
       setSelectedRepo(repoFullName)
+      if (wasOnboarded) {
+        alert('Workflow updated!')
+      }
     } else {
       const errText = await res.text();
       console.error("Onboarding failed:", res.status, errText);
