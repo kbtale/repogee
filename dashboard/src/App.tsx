@@ -1,4 +1,4 @@
-import { createSignal, onMount, Switch, Match, Show } from 'solid-js'
+import { createSignal, onMount, Switch, Match, Show, createEffect } from 'solid-js'
 import LandingView from './views/LandingView'
 import SetupView from './views/SetupView'
 import LeaderboardView from './views/LeaderboardView'
@@ -23,6 +23,11 @@ export default function App() {
   const [installModalRepo, setInstallModalRepo] = createSignal<string | null>(null)
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+
+  createEffect(() => {
+    view()
+    window.scrollTo({ top: 0, behavior: 'instant' })
+  })
 
   onMount(async () => {
     const savedTheme = localStorage.getItem('theme') || 'dark'
@@ -149,32 +154,49 @@ export default function App() {
             <p class="text-theme-secondary font-molengo text-lg">Authenticating with GitHub...</p>
           </div>
         </Match>
-        <Match when={view() === 'landing' && !loading()}>
-          <LandingView onLogin={handleLogin} theme={theme()} onToggleTheme={toggleTheme} />
-        </Match>
-        <Match when={view() === 'setup' && !loading() && user()}>
-          <SetupView
-            user={user()!}
-            repos={repos()}
-            theme={theme()}
-            onToggleTheme={toggleTheme}
-            onOnboard={handleOnboard}
-            onViewLeaderboard={(repoFullName) => {
-              setSelectedRepo(repoFullName)
-              setView('leaderboard')
-            }}
-            onLogout={handleLogout}
-          />
-        </Match>
-        <Match when={view() === 'leaderboard' && !loading() && user() && selectedRepo()}>
-          <LeaderboardView
-            user={user()!}
-            selectedRepo={selectedRepo()!}
-            theme={theme()}
-            onToggleTheme={toggleTheme}
-            onBack={() => setView('setup')}
-            onLogout={handleLogout}
-          />
+        <Match when={!loading()}>
+          <div class="relative w-full overflow-x-hidden min-h-screen">
+            <div
+              class="transition-transform duration-500 ease-out flex w-[300%]"
+              style={{
+                transform: `translateX(-${
+                  view() === 'landing' ? '0%' : view() === 'setup' ? '33.333333%' : '66.666667%'
+                })`
+              }}
+            >
+              <div class="w-1/3 shrink-0 min-h-screen">
+                <LandingView onLogin={handleLogin} theme={theme()} onToggleTheme={toggleTheme} />
+              </div>
+              <div class="w-1/3 shrink-0 min-h-screen">
+                <Show when={user()}>
+                  <SetupView
+                    user={user()!}
+                    repos={repos()}
+                    theme={theme()}
+                    onToggleTheme={toggleTheme}
+                    onOnboard={handleOnboard}
+                    onViewLeaderboard={(repoFullName) => {
+                      setSelectedRepo(repoFullName)
+                      setView('leaderboard')
+                    }}
+                    onLogout={handleLogout}
+                  />
+                </Show>
+              </div>
+              <div class="w-1/3 shrink-0 min-h-screen">
+                <Show when={selectedRepo()}>
+                  <LeaderboardView
+                    user={user()!}
+                    selectedRepo={selectedRepo()!}
+                    theme={theme()}
+                    onToggleTheme={toggleTheme}
+                    onBack={() => setView('setup')}
+                    onLogout={handleLogout}
+                  />
+                </Show>
+              </div>
+            </div>
+          </div>
         </Match>
       </Switch>
 
