@@ -6,6 +6,14 @@ pub fn generate_badge_svg(level: u32, class_name: &str) -> String {
     let right_width = calculate_text_width(&right_text) + 10;
     let total_width = left_width + right_width;
     
+    let right_color = match class_name {
+        c if c.contains("Frontend") || c.contains("Artisan") || c.contains("Sculptor") => "#ff007f",
+        c if c.contains("Backend") || c.contains("Systems") || c.contains("Architect") => "#00ffcc",
+        c if c.contains("DevOps") || c.contains("IaC") || c.contains("Configurator") => "#9b59b6",
+        c if c.contains("Database") || c.contains("NoSQL") || c.contains("Alchemist") => "#3498db",
+        _ => "#007ec6",
+    };
+    
     format!(
         r##"<svg xmlns="http://www.w3.org/2000/svg" width="{}" height="20">
   <linearGradient id="smooth" x2="0" y2="100%">
@@ -17,7 +25,7 @@ pub fn generate_badge_svg(level: u32, class_name: &str) -> String {
   </mask>
   <g mask="url(#round)">
     <rect width="{}" height="20" fill="#555"/>
-    <rect x="{}" width="{}" height="20" fill="#007ec6"/>
+    <rect x="{}" width="{}" height="20" fill="{}"/>
     <rect width="{}" height="20" fill="url(#smooth)"/>
   </g>
   <g fill="#fff" text-anchor="middle" font-family="DejaVu Sans,Verdana,Geneva,sans-serif" font-size="11">
@@ -32,6 +40,7 @@ pub fn generate_badge_svg(level: u32, class_name: &str) -> String {
         left_width,
         left_width,
         right_width,
+        right_color,
         total_width,
         left_width / 2,
         left_text,
