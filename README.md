@@ -154,6 +154,11 @@ Run the server in development mode:
 cargo run
 ```
 
+To enable debug or info logs, set the `RUST_LOG` environment variable:
+```bash
+RUST_LOG=info cargo run
+```
+
 ### Deploying the GitHub App
 1. Create a GitHub App in your GitHub Developer Settings.
 2. Set the Webhook URL to point to your deployed Axum server `/webhook` endpoint.
@@ -176,3 +181,4 @@ To run clippy and lints:
 ```bash
 cargo clippy --all-targets --all-features -- -D warnings
 ```
+
