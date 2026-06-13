@@ -121,6 +121,40 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
     return 'High Activity'
   }
 
+  const getSubclassComposition = () => {
+    const list = contributors()
+    let frontend = 0
+    let backend = 0
+    let devops = 0
+    let other = 0
+
+    if (list.length === 0) {
+      return { frontend: 0, backend: 0, devops: 0, other: 0, total: 0 }
+    }
+
+    for (const c of list) {
+      const cls = (c.subclass || '').toLowerCase()
+      if (cls.includes('frontend') || cls.includes('artisan') || cls.includes('sculptor') || cls.includes('designer')) {
+        frontend += 1
+      } else if (cls.includes('backend') || cls.includes('systems') || cls.includes('architect') || cls.includes('database') || cls.includes('nosql')) {
+        backend += 1
+      } else if (cls.includes('devops') || cls.includes('iac') || cls.includes('configurator') || cls.includes('protocol')) {
+        devops += 1
+      } else {
+        other += 1
+      }
+    }
+
+    const total = list.length
+    return {
+      frontend: Math.round((frontend / total) * 100),
+      backend: Math.round((backend / total) * 100),
+      devops: Math.round((devops / total) * 100),
+      other: Math.round((other / total) * 100),
+      total,
+    }
+  }
+
   const filteredContributors = () => {
     const query = searchQuery().toLowerCase().trim()
     if (!query) return contributors()
@@ -495,7 +529,7 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
               </div>
             </Match>
             <Match when={activeTab() === 'analytics'}>
-              <div class="flex-1 overflow-y-auto px-4 sm:px-6 py-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div class="flex-1 overflow-y-auto px-4 sm:px-6 py-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div class="bg-theme-card border border-theme-border rounded-3xl p-6 sm:p-8 transition-colors duration-200">
                   <h2 class="font-montserrat text-base sm:text-lg font-extrabold tracking-widest uppercase mb-6 text-theme-primary">XP Contribution Analytics</h2>
                   <div class="flex flex-col gap-4">
@@ -522,6 +556,83 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
                     <p class="text-[10px] text-theme-secondary mt-2 leading-relaxed">
                       Note: Additional XP bonuses are awarded for heavy refactoring, resolving merge conflicts, adding documentation, batch commits, and maintaining activity streaks.
                     </p>
+                  </div>
+                </div>
+
+                <div class="bg-theme-card border border-theme-border rounded-3xl p-6 sm:p-8 transition-colors duration-200 flex flex-col justify-between">
+                  <div>
+                    <h2 class="font-montserrat text-base sm:text-lg font-extrabold tracking-widest uppercase mb-6 text-theme-primary">Subclass Composition</h2>
+                    
+                    <Show
+                      when={getSubclassComposition().total > 0}
+                      fallback={
+                        <div class="py-12 text-center border border-dashed border-theme-border rounded-2xl bg-theme-bg">
+                          <p class="text-theme-secondary font-molengo text-xs italic">No contributors tracked yet.</p>
+                        </div>
+                      }
+                    >
+                      <div class="h-4 w-full bg-theme-bg/60 border border-theme-border/30 rounded-full overflow-hidden flex mb-6">
+                        <Show when={getSubclassComposition().backend > 0}>
+                          <div
+                            class="h-full bg-[#00ffcc] transition-all duration-300 hover:opacity-80 cursor-help"
+                            style={{ width: `${getSubclassComposition().backend}%` }}
+                            title={`Backend/Systems: ${getSubclassComposition().backend}%`}
+                          ></div>
+                        </Show>
+                        <Show when={getSubclassComposition().frontend > 0}>
+                          <div
+                            class="h-full bg-[#ff007f] transition-all duration-300 hover:opacity-80 cursor-help"
+                            style={{ width: `${getSubclassComposition().frontend}%` }}
+                            title={`Frontend/Artisan: ${getSubclassComposition().frontend}%`}
+                          ></div>
+                        </Show>
+                        <Show when={getSubclassComposition().devops > 0}>
+                          <div
+                            class="h-full bg-[#9b59b6] transition-all duration-300 hover:opacity-80 cursor-help"
+                            style={{ width: `${getSubclassComposition().devops}%` }}
+                            title={`DevOps/Infra: ${getSubclassComposition().devops}%`}
+                          ></div>
+                        </Show>
+                        <Show when={getSubclassComposition().other > 0}>
+                          <div
+                            class="h-full bg-[#007ec6] transition-all duration-300 hover:opacity-80 cursor-help"
+                            style={{ width: `${getSubclassComposition().other}%` }}
+                            title={`Other: ${getSubclassComposition().other}%`}
+                          ></div>
+                        </Show>
+                      </div>
+
+                      <div class="flex flex-col gap-3.5">
+                        <div class="flex items-center justify-between">
+                          <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-[#00ffcc] shrink-0"></span>
+                            <span class="text-xs font-semibold text-theme-primary">Backend / Systems</span>
+                          </div>
+                          <span class="text-xs font-bold text-theme-secondary">{getSubclassComposition().backend}%</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                          <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-[#ff007f] shrink-0"></span>
+                            <span class="text-xs font-semibold text-theme-primary">Frontend / Artisan</span>
+                          </div>
+                          <span class="text-xs font-bold text-theme-secondary">{getSubclassComposition().frontend}%</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                          <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-[#9b59b6] shrink-0"></span>
+                            <span class="text-xs font-semibold text-theme-primary">DevOps / Infra</span>
+                          </div>
+                          <span class="text-xs font-bold text-theme-secondary">{getSubclassComposition().devops}%</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                          <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-[#007ec6] shrink-0"></span>
+                            <span class="text-xs font-semibold text-theme-primary">Others</span>
+                          </div>
+                          <span class="text-xs font-bold text-theme-secondary">{getSubclassComposition().other}%</span>
+                        </div>
+                      </div>
+                    </Show>
                   </div>
                 </div>
 
