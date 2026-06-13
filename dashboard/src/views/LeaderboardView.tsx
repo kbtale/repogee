@@ -121,6 +121,40 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
     return 'High Activity'
   }
 
+  const getSubclassComposition = () => {
+    const list = contributors()
+    let frontend = 0
+    let backend = 0
+    let devops = 0
+    let other = 0
+
+    if (list.length === 0) {
+      return { frontend: 0, backend: 0, devops: 0, other: 0, total: 0 }
+    }
+
+    for (const c of list) {
+      const cls = (c.subclass || '').toLowerCase()
+      if (cls.includes('frontend') || cls.includes('artisan') || cls.includes('sculptor') || cls.includes('designer')) {
+        frontend += 1
+      } else if (cls.includes('backend') || cls.includes('systems') || cls.includes('architect') || cls.includes('database') || cls.includes('nosql')) {
+        backend += 1
+      } else if (cls.includes('devops') || cls.includes('iac') || cls.includes('configurator') || cls.includes('protocol')) {
+        devops += 1
+      } else {
+        other += 1
+      }
+    }
+
+    const total = list.length
+    return {
+      frontend: Math.round((frontend / total) * 100),
+      backend: Math.round((backend / total) * 100),
+      devops: Math.round((devops / total) * 100),
+      other: Math.round((other / total) * 100),
+      total,
+    }
+  }
+
   const filteredContributors = () => {
     const query = searchQuery().toLowerCase().trim()
     if (!query) return contributors()
@@ -175,6 +209,13 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
                 <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
               </button>
               <button
+                onClick={() => setActiveTab('settings')}
+                class={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer ${activeTab() === 'settings' ? 'bg-theme-accent text-[#070A13] border border-theme-accent shadow-sm' : 'text-theme-glaucous hover:text-theme-secondary hover:bg-theme-border-sub'}`}
+                title="Settings"
+              >
+                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              </button>
+              <button
                 onClick={props.onBack}
                 class="w-12 h-12 rounded-full flex items-center justify-center text-theme-glaucous hover:text-theme-secondary hover:bg-theme-border-sub transition-all duration-200 cursor-pointer"
                 title="Repositories"
@@ -209,6 +250,12 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
             class={`p-3 rounded-full transition-all duration-200 cursor-pointer ${activeTab() === 'analytics' ? 'bg-theme-accent text-[#070A13]' : 'text-theme-glaucous'}`}
           >
             <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+          </button>
+          <button
+            onClick={() => setActiveTab('settings')}
+            class={`p-3 rounded-full transition-all duration-200 cursor-pointer ${activeTab() === 'settings' ? 'bg-theme-accent text-[#070A13]' : 'text-theme-glaucous'}`}
+          >
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
           </button>
           <button
             onClick={props.onBack}
@@ -275,7 +322,7 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
                     <div class="flex flex-col gap-2">
                       <div class="p-2 bg-theme-bg rounded-lg border border-theme-border/30">
                         <p class="text-theme-primary font-semibold">Welcome to Repogee!</p>
-                        <p class="text-theme-secondary mt-0.5 text-[10px]">Your repository leaderboard has been successfully connected.</p>
+                        <p class="text-theme-secondary mt-0.5 text-[10px]">Your repository leaderboard has been connected.</p>
                       </div>
                     </div>
                   </div>
@@ -482,7 +529,7 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
               </div>
             </Match>
             <Match when={activeTab() === 'analytics'}>
-              <div class="flex-1 overflow-y-auto px-4 sm:px-6 py-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div class="flex-1 overflow-y-auto px-4 sm:px-6 py-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div class="bg-theme-card border border-theme-border rounded-3xl p-6 sm:p-8 transition-colors duration-200">
                   <h2 class="font-montserrat text-base sm:text-lg font-extrabold tracking-widest uppercase mb-6 text-theme-primary">XP Contribution Analytics</h2>
                   <div class="flex flex-col gap-4">
@@ -512,6 +559,83 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
                   </div>
                 </div>
 
+                <div class="bg-theme-card border border-theme-border rounded-3xl p-6 sm:p-8 transition-colors duration-200 flex flex-col justify-between">
+                  <div>
+                    <h2 class="font-montserrat text-base sm:text-lg font-extrabold tracking-widest uppercase mb-6 text-theme-primary">Subclass Composition</h2>
+                    
+                    <Show
+                      when={getSubclassComposition().total > 0}
+                      fallback={
+                        <div class="py-12 text-center border border-dashed border-theme-border rounded-2xl bg-theme-bg">
+                          <p class="text-theme-secondary font-molengo text-xs italic">No contributors tracked yet.</p>
+                        </div>
+                      }
+                    >
+                      <div class="h-4 w-full bg-theme-bg/60 border border-theme-border/30 rounded-full overflow-hidden flex mb-6">
+                        <Show when={getSubclassComposition().backend > 0}>
+                          <div
+                            class="h-full bg-[#00ffcc] transition-all duration-300 hover:opacity-80 cursor-help"
+                            style={{ width: `${getSubclassComposition().backend}%` }}
+                            title={`Backend/Systems: ${getSubclassComposition().backend}%`}
+                          ></div>
+                        </Show>
+                        <Show when={getSubclassComposition().frontend > 0}>
+                          <div
+                            class="h-full bg-[#ff007f] transition-all duration-300 hover:opacity-80 cursor-help"
+                            style={{ width: `${getSubclassComposition().frontend}%` }}
+                            title={`Frontend/Artisan: ${getSubclassComposition().frontend}%`}
+                          ></div>
+                        </Show>
+                        <Show when={getSubclassComposition().devops > 0}>
+                          <div
+                            class="h-full bg-[#9b59b6] transition-all duration-300 hover:opacity-80 cursor-help"
+                            style={{ width: `${getSubclassComposition().devops}%` }}
+                            title={`DevOps/Infra: ${getSubclassComposition().devops}%`}
+                          ></div>
+                        </Show>
+                        <Show when={getSubclassComposition().other > 0}>
+                          <div
+                            class="h-full bg-[#007ec6] transition-all duration-300 hover:opacity-80 cursor-help"
+                            style={{ width: `${getSubclassComposition().other}%` }}
+                            title={`Other: ${getSubclassComposition().other}%`}
+                          ></div>
+                        </Show>
+                      </div>
+
+                      <div class="flex flex-col gap-3.5">
+                        <div class="flex items-center justify-between">
+                          <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-[#00ffcc] shrink-0"></span>
+                            <span class="text-xs font-semibold text-theme-primary">Backend / Systems</span>
+                          </div>
+                          <span class="text-xs font-bold text-theme-secondary">{getSubclassComposition().backend}%</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                          <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-[#ff007f] shrink-0"></span>
+                            <span class="text-xs font-semibold text-theme-primary">Frontend / Artisan</span>
+                          </div>
+                          <span class="text-xs font-bold text-theme-secondary">{getSubclassComposition().frontend}%</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                          <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-[#9b59b6] shrink-0"></span>
+                            <span class="text-xs font-semibold text-theme-primary">DevOps / Infra</span>
+                          </div>
+                          <span class="text-xs font-bold text-theme-secondary">{getSubclassComposition().devops}%</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                          <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-[#007ec6] shrink-0"></span>
+                            <span class="text-xs font-semibold text-theme-primary">Others</span>
+                          </div>
+                          <span class="text-xs font-bold text-theme-secondary">{getSubclassComposition().other}%</span>
+                        </div>
+                      </div>
+                    </Show>
+                  </div>
+                </div>
+
                 <div class="bg-theme-card border border-theme-border rounded-3xl p-6 sm:p-8 transition-colors duration-200">
                   <h2 class="font-montserrat text-base sm:text-lg font-extrabold tracking-widest uppercase mb-6 text-theme-primary">Your Status</h2>
                   <div class="flex flex-col gap-4">
@@ -527,6 +651,68 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
                         Level {getActiveUser().level} ({getActiveUser().xp} XP total)
                       </div>
                     </div>
+                  </div>
+                </div>
+              </div>
+            </Match>
+            <Match when={activeTab() === 'settings'}>
+              <div class="flex-1 overflow-y-auto px-4 sm:px-6 py-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-theme-card border border-theme-border rounded-3xl p-6 sm:p-8 transition-colors duration-200 flex flex-col gap-6">
+                  <div>
+                    <h2 class="font-montserrat text-base sm:text-lg font-extrabold tracking-widest uppercase mb-2 text-theme-primary">Repository Integration</h2>
+                    <p class="text-xs text-theme-secondary font-hind">Configure and copy the GitHub Action workflow for this repository.</p>
+                  </div>
+                  
+                  <div class="flex flex-col gap-4">
+                    <div class="p-4 bg-theme-bg border border-theme-border/40 rounded-2xl">
+                      <span class="text-[9px] text-theme-secondary font-molengo uppercase tracking-wider">GitHub App Mode</span>
+                      <div class="flex items-center gap-2 mt-1.5">
+                        <span class="w-2.5 h-2.5 rounded-full bg-theme-accent"></span>
+                        <span class="font-montserrat text-xs font-bold text-theme-primary">Active Hook Integration</span>
+                      </div>
+                    </div>
+
+                    <div class="p-4 bg-theme-bg border border-theme-border/40 rounded-2xl">
+                      <span class="text-[9px] text-theme-secondary font-molengo uppercase tracking-wider">Webhook URL</span>
+                      <div class="font-hind text-xs text-theme-primary mt-1 break-all select-all font-semibold">
+                        {API_URL}/webhook
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="bg-theme-card border border-theme-border rounded-3xl p-6 sm:p-8 transition-colors duration-200 flex flex-col justify-between">
+                  <div>
+                    <h2 class="font-montserrat text-base sm:text-lg font-extrabold tracking-widest uppercase mb-4 text-theme-primary">Workflow Configuration</h2>
+                    <p class="text-xs text-theme-secondary font-hind mb-4">You can copy the `.github/workflows/repogee.yml` reference workflow below.</p>
+                    <pre class="bg-theme-bg border border-theme-border/40 p-4 rounded-2xl text-[10px] text-theme-primary font-mono overflow-x-auto leading-relaxed select-all">
+{`name: Repogee Leaderboard
+
+on:
+  pull_request:
+    types: [opened, closed]
+  issues:
+    types: [opened, closed]
+  issue_comment:
+    types: [created]
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  gamify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Repogee Leaderboard
+        uses: kbtale/repogee@main`}
+                    </pre>
                   </div>
                 </div>
               </div>
