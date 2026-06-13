@@ -175,6 +175,13 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
                 <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
               </button>
               <button
+                onClick={() => setActiveTab('settings')}
+                class={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer ${activeTab() === 'settings' ? 'bg-theme-accent text-[#070A13] border border-theme-accent shadow-sm' : 'text-theme-glaucous hover:text-theme-secondary hover:bg-theme-border-sub'}`}
+                title="Settings"
+              >
+                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              </button>
+              <button
                 onClick={props.onBack}
                 class="w-12 h-12 rounded-full flex items-center justify-center text-theme-glaucous hover:text-theme-secondary hover:bg-theme-border-sub transition-all duration-200 cursor-pointer"
                 title="Repositories"
@@ -209,6 +216,12 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
             class={`p-3 rounded-full transition-all duration-200 cursor-pointer ${activeTab() === 'analytics' ? 'bg-theme-accent text-[#070A13]' : 'text-theme-glaucous'}`}
           >
             <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+          </button>
+          <button
+            onClick={() => setActiveTab('settings')}
+            class={`p-3 rounded-full transition-all duration-200 cursor-pointer ${activeTab() === 'settings' ? 'bg-theme-accent text-[#070A13]' : 'text-theme-glaucous'}`}
+          >
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
           </button>
           <button
             onClick={props.onBack}
@@ -275,7 +288,7 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
                     <div class="flex flex-col gap-2">
                       <div class="p-2 bg-theme-bg rounded-lg border border-theme-border/30">
                         <p class="text-theme-primary font-semibold">Welcome to Repogee!</p>
-                        <p class="text-theme-secondary mt-0.5 text-[10px]">Your repository leaderboard has been successfully connected.</p>
+                        <p class="text-theme-secondary mt-0.5 text-[10px]">Your repository leaderboard has been connected.</p>
                       </div>
                     </div>
                   </div>
@@ -527,6 +540,68 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
                         Level {getActiveUser().level} ({getActiveUser().xp} XP total)
                       </div>
                     </div>
+                  </div>
+                </div>
+              </div>
+            </Match>
+            <Match when={activeTab() === 'settings'}>
+              <div class="flex-1 overflow-y-auto px-4 sm:px-6 py-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-theme-card border border-theme-border rounded-3xl p-6 sm:p-8 transition-colors duration-200 flex flex-col gap-6">
+                  <div>
+                    <h2 class="font-montserrat text-base sm:text-lg font-extrabold tracking-widest uppercase mb-2 text-theme-primary">Repository Integration</h2>
+                    <p class="text-xs text-theme-secondary font-hind">Configure and copy the GitHub Action workflow for this repository.</p>
+                  </div>
+                  
+                  <div class="flex flex-col gap-4">
+                    <div class="p-4 bg-theme-bg border border-theme-border/40 rounded-2xl">
+                      <span class="text-[9px] text-theme-secondary font-molengo uppercase tracking-wider">GitHub App Mode</span>
+                      <div class="flex items-center gap-2 mt-1.5">
+                        <span class="w-2.5 h-2.5 rounded-full bg-theme-accent"></span>
+                        <span class="font-montserrat text-xs font-bold text-theme-primary">Active Hook Integration</span>
+                      </div>
+                    </div>
+
+                    <div class="p-4 bg-theme-bg border border-theme-border/40 rounded-2xl">
+                      <span class="text-[9px] text-theme-secondary font-molengo uppercase tracking-wider">Webhook URL</span>
+                      <div class="font-hind text-xs text-theme-primary mt-1 break-all select-all font-semibold">
+                        {API_URL}/webhook
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="bg-theme-card border border-theme-border rounded-3xl p-6 sm:p-8 transition-colors duration-200 flex flex-col justify-between">
+                  <div>
+                    <h2 class="font-montserrat text-base sm:text-lg font-extrabold tracking-widest uppercase mb-4 text-theme-primary">Workflow Configuration</h2>
+                    <p class="text-xs text-theme-secondary font-hind mb-4">You can copy the `.github/workflows/repogee.yml` reference workflow below.</p>
+                    <pre class="bg-theme-bg border border-theme-border/40 p-4 rounded-2xl text-[10px] text-theme-primary font-mono overflow-x-auto leading-relaxed select-all">
+{`name: Repogee Leaderboard
+
+on:
+  pull_request:
+    types: [opened, closed]
+  issues:
+    types: [opened, closed]
+  issue_comment:
+    types: [created]
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  gamify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Repogee Leaderboard
+        uses: kbtale/repogee@main`}
+                    </pre>
                   </div>
                 </div>
               </div>
