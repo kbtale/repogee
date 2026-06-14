@@ -244,11 +244,7 @@ export default function SetupView(props: SetupViewProps) {
                   <button
                     disabled={loadingRepo() !== null}
                     onClick={() => repo.onboarded ? props.onViewLeaderboard(repo.full_name) : handleOnboard(repo.full_name)}
-                    class={`w-full py-3 px-4 rounded-full font-montserrat font-bold text-xs border transition-all duration-200 cursor-pointer bg-transparent ${
-                      repo.onboarded
-                        ? "border-theme-accent text-theme-accent hover:bg-theme-accent hover:text-[#070A13]"
-                        : "border-theme-accent text-theme-accent hover:bg-theme-accent hover:text-[#070A13]"
-                    }`}
+                    class={`w-full py-3 px-4 rounded-full font-montserrat font-bold text-xs border transition-all duration-200 cursor-pointer bg-transparent border-theme-accent text-theme-accent hover:bg-theme-accent hover:text-[#070A13]`}
                   >
                     {loadingRepo() === repo.full_name && !repo.onboarded ? (
                       <span class="flex items-center justify-center gap-2">
@@ -267,7 +263,7 @@ export default function SetupView(props: SetupViewProps) {
                     <button
                       disabled={loadingRepo() !== null}
                       onClick={() => handleOnboard(repo.full_name)}
-                      class="w-full py-3 px-4 rounded-full font-montserrat font-bold text-xs border transition-all duration-200 cursor-pointer bg-transparent border-theme-border text-theme-secondary hover:border-theme-accent hover:text-theme-primary"
+                      class="w-full py-3 px-4 rounded-full font-montserrat font-bold text-xs border transition-all duration-200 cursor-pointer bg-transparent border-theme-border text-theme-secondary hover:border-theme-secondary hover:bg-theme-secondary hover:text-[#070A13]"
                     >
                       {loadingRepo() === repo.full_name ? (
                         <span class="flex items-center justify-center gap-2">
@@ -283,7 +279,7 @@ export default function SetupView(props: SetupViewProps) {
                     <button
                       disabled={loadingRepo() !== null}
                       onClick={() => handleOffboard(repo.full_name)}
-                      class="w-full py-3 px-4 rounded-full font-montserrat font-bold text-xs border transition-all duration-200 cursor-pointer bg-transparent border-red-500/30 text-red-500 hover:border-red-500 hover:bg-red-500/10 mt-1"
+                      class="w-full py-3 px-4 rounded-full font-montserrat font-bold text-xs border transition-all duration-200 cursor-pointer bg-transparent border-red-500/30 text-red-500 hover:border-red-500 hover:bg-red-500 hover:text-[#070A13] mt-1"
                     >
                       {loadingRepo() === `off_${repo.full_name}` ? (
                         <span class="flex items-center justify-center gap-2">
