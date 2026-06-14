@@ -21,6 +21,16 @@ export default function App() {
   const [theme, setTheme] = createSignal<'dark' | 'light'>('dark')
   const [installModalUrl, setInstallModalUrl] = createSignal<string | null>(null)
   const [installModalRepo, setInstallModalRepo] = createSignal<string | null>(null)
+  const [toastMessage, setToastMessage] = createSignal<string | null>(null)
+
+  const showToast = (message: string) => {
+    setToastMessage(message)
+    setTimeout(() => {
+      if (toastMessage() === message) {
+        setToastMessage(null)
+      }
+    }, 4000)
+  }
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
 
@@ -120,7 +130,7 @@ export default function App() {
       )
       setSelectedRepo(repoFullName)
       if (wasOnboarded) {
-        alert('Workflow updated!')
+        showToast('Workflow updated!')
       }
     } else {
       const errText = await res.text();
@@ -133,7 +143,7 @@ export default function App() {
           return
         }
       } catch (_) {}
-      alert(`Failed to connect repository: ${errText || res.statusText}`);
+      showToast(`Failed to connect repository: ${errText || res.statusText}`);
     }
   }
 
@@ -239,6 +249,23 @@ export default function App() {
                   Open Settings
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+      </Show>
+
+      <Show when={toastMessage()}>
+        {(msg) => (
+          <div class="fixed bottom-6 right-6 z-[110]">
+            <div class="bg-theme-card border border-theme-border/60 rounded-2xl px-5 py-3.5 shadow-2xl flex items-center gap-3 backdrop-blur-md">
+              <span class="w-2 h-2 rounded-full bg-theme-accent shrink-0 animate-ping"></span>
+              <p class="font-hind text-xs font-bold text-theme-primary">{msg()}</p>
+              <button
+                onClick={() => setToastMessage(null)}
+                class="ml-2 text-theme-secondary hover:text-theme-primary transition-colors text-xs font-bold cursor-pointer"
+              >
+                ✕
+              </button>
             </div>
           </div>
         )}
