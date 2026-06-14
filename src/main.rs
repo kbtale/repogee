@@ -648,32 +648,81 @@ async fn onboard_handler(
 
     let content_path = "SCORE.md";
     let (mut user_stats, existing_sha) = match github::state::fetch_score_file(&octo, owner, repo).await {
-        Ok((content, sha)) => (github::parser::parse_score_file(&content), sha),
-        Err(_) => (Vec::new(), None),
+        Ok((content, sha)) => {
+            let parsed = github::parser::parse_score_file(&content);
+            if parsed.is_empty() {
+                warn!("Fetched SCORE.md was empty or failed to parse for {}/{}", owner, repo);
+            }
+            (parsed, sha)
+        }
+        Err(e) => {
+            info!("No existing SCORE.md found or failed to fetch for {}/{}: {}", owner, repo, e);
+            (Vec::new(), None)
+        }
     };
 
-    if let Ok(contrib_page) = octo.repos(owner, repo).list_contributors().send().await {
-        for contributor in contrib_page.items {
-            let username = contributor.author.login.clone();
-            let api_contributions = contributor.contributions;
-            let api_xp = api_contributions * 20;
+    let mut user_login = None;
+    if let Ok(user_client) = octocrab::Octocrab::builder()
+        .personal_token(_token.to_string())
+        .build()
+    {
+        if let Ok(user) = user_client.current().user().await {
+            user_login = Some(user.login);
+        }
+    }
 
-            if let Some(existing_user) = user_stats.iter_mut().find(|u| u.username.eq_ignore_ascii_case(&username)) {
-                if api_xp > existing_user.xp {
-                    existing_user.xp = api_xp;
-                    existing_user.level = engine::calculator::calculate_level(api_xp);
+    match octo.repos(owner, repo).list_contributors().send().await {
+        Ok(contrib_page) => {
+            info!("Fetched {} contributors from GitHub API for {}/{}", contrib_page.items.len(), owner, repo);
+            for contributor in contrib_page.items {
+                let username = contributor.author.login.clone();
+                let api_contributions = contributor.contributions;
+                let api_xp = api_contributions * 20;
+
+                if let Some(existing_user) = user_stats.iter_mut().find(|u| u.username.eq_ignore_ascii_case(&username)) {
+                    if api_xp > existing_user.xp {
+                        existing_user.xp = api_xp;
+                        existing_user.level = engine::calculator::calculate_level(api_xp);
+                    }
+                } else {
+                    let level = engine::calculator::calculate_level(api_xp);
+                    user_stats.push(github::parser::UserStats {
+                        username,
+                        class: engine::classes::FuturisticClass::BackendDeveloper,
+                        subclass: "General Developer".to_string(),
+                        level,
+                        xp: api_xp,
+                        last_active: None,
+                    });
                 }
-            } else {
-                let level = engine::calculator::calculate_level(api_xp);
-                user_stats.push(github::parser::UserStats {
-                    username,
-                    class: engine::classes::FuturisticClass::BackendDeveloper,
-                    subclass: "General Developer".to_string(),
-                    level,
-                    xp: api_xp,
-                    last_active: None,
-                });
             }
+        }
+        Err(e) => {
+            warn!("Failed to fetch contributors list from GitHub API for {}/{}: {}", owner, repo, e);
+        }
+    }
+
+    if user_stats.is_empty() {
+        if let Some(username) = user_login {
+            info!("User stats is empty after contributors fetch; seeding with onboarding user {}", username);
+            user_stats.push(github::parser::UserStats {
+                username,
+                class: engine::classes::FuturisticClass::BackendDeveloper,
+                subclass: "General Developer".to_string(),
+                level: 1,
+                xp: 20,
+                last_active: None,
+            });
+        } else {
+            info!("User stats is empty and user login not fetched; seeding with repo owner {}", owner);
+            user_stats.push(github::parser::UserStats {
+                username: owner.to_string(),
+                class: engine::classes::FuturisticClass::BackendDeveloper,
+                subclass: "General Developer".to_string(),
+                level: 1,
+                xp: 20,
+                last_active: None,
+            });
         }
     }
 
