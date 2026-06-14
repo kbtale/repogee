@@ -469,6 +469,7 @@ pub struct GithubRepoInfo {
     pub description: Option<String>,
     pub private: bool,
     pub onboarded: bool,
+    pub installed: bool,
     pub contributors_count: Option<u32>,
 }
 
@@ -503,11 +504,40 @@ async fn repos_handler(
             (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Failed to fetch repositories".to_string())
         })?;
 
+    let mut installed_repos = std::collections::HashSet::new();
+
+    #[derive(serde::Deserialize)]
+    struct UserInstallationsResponse {
+        installations: Vec<serde_json::Value>,
+    }
+
+    #[derive(serde::Deserialize)]
+    struct InstallationReposResponse {
+        repositories: Vec<serde_json::Value>,
+    }
+
+    if let Ok(inst_res) = octo.get::<UserInstallationsResponse, _, _>("/user/installations", None::<&()>).await {
+        for inst in inst_res.installations {
+            if let Some(inst_id) = inst.get("id").and_then(|id| id.as_u64()) {
+                let url = format!("/user/installations/{}/repositories", inst_id);
+                if let Ok(repos_res) = octo.get::<InstallationReposResponse, _, _>(&url, None::<&()>).await {
+                    for r in repos_res.repositories {
+                        if let Some(r_id) = r.get("id").and_then(|id| id.as_u64()) {
+                            installed_repos.insert(r_id);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     let mut join_set = tokio::task::JoinSet::new();
     for repo in page {
         if repo.archived.unwrap_or(false) {
             continue;
         }
+        let repo_id = repo.id.into_inner();
+        let installed = installed_repos.contains(&repo_id);
         let octo = octo.clone();
         join_set.spawn(async move {
             let full_name = repo.full_name.clone().unwrap_or_default();
@@ -539,12 +569,13 @@ async fn repos_handler(
                 }
             }
             GithubRepoInfo {
-                id: repo.id.into_inner(),
+                id: repo_id,
                 name: repo.name,
                 full_name,
                 description: repo.description,
                 private: repo.r#private.unwrap_or(false),
                 onboarded,
+                installed,
                 contributors_count,
             }
         });
