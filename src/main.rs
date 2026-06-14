@@ -503,6 +503,9 @@ async fn repos_handler(
 
     let mut join_set = tokio::task::JoinSet::new();
     for repo in page {
+        if repo.archived.unwrap_or(false) {
+            continue;
+        }
         let octo = octo.clone();
         join_set.spawn(async move {
             let full_name = repo.full_name.clone().unwrap_or_default();
