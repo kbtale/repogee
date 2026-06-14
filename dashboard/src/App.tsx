@@ -177,6 +177,47 @@ export default function App() {
     }
   }
 
+  const handleOffboard = async (repoFullName: string) => {
+    const token = localStorage.getItem('token')
+    if (!token) return
+
+    const res = await fetch(`${API_URL}/api/offboard`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ repo_full_name: repoFullName }),
+    })
+
+    if (res.ok) {
+      showToast('Repository disconnected!')
+      if (selectedRepo() === repoFullName) {
+        setSelectedRepo(null)
+      }
+      setRepos(
+        repos().map((r) =>
+          r.full_name === repoFullName ? { ...r, onboarded: false, contributors_count: undefined } : r
+        )
+      )
+
+      try {
+        const reposRes = await fetch(`${API_URL}/api/repos`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (reposRes.ok) {
+          const reposData = await reposRes.json()
+          setRepos(reposData)
+        }
+      } catch (e) {
+        console.error("Failed to refresh repositories list:", e)
+      }
+    } else {
+      const errText = await res.text()
+      showToast(`Failed to disconnect repository: ${errText || res.statusText}`)
+    }
+  }
+
   const handleLogout = () => {
     localStorage.removeItem('token')
     setUser(null)
@@ -200,6 +241,7 @@ export default function App() {
                 theme={theme()}
                 onToggleTheme={toggleTheme}
                 onOnboard={handleOnboard}
+                onOffboard={handleOffboard}
                 onViewLeaderboard={(repoFullName) => {
                   setSelectedRepo(repoFullName)
                   navigateTo('leaderboard')
