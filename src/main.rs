@@ -328,6 +328,7 @@ async fn main() {
         .allow_methods(vec![
             axum::http::Method::GET,
             axum::http::Method::POST,
+            axum::http::Method::DELETE,
         ])
         .allow_headers(vec![
             axum::http::header::AUTHORIZATION,
@@ -343,6 +344,7 @@ async fn main() {
         .route("/api/leaderboard", get(leaderboard_handler))
         .route("/api/repos", get(repos_handler))
         .route("/api/onboard", post(onboard_handler))
+        .route("/api/offboard", post(offboard_handler))
         .route("/api/badge/:username", get(badge_handler))
         .layer(cors)
         .with_state(state);
@@ -856,6 +858,120 @@ async fn onboard_handler(
         "status": "success",
         "score_created": score_created,
         "webhook_status": webhook_status,
+    }))))
+}
+
+async fn offboard_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    axum::Json(payload): axum::Json<OnboardPayload>,
+) -> Result<impl IntoResponse, (StatusCode, String)> {
+    let auth_header = headers
+        .get("Authorization")
+        .and_then(|h| h.to_str().ok())
+        .ok_or_else(|| (StatusCode::UNAUTHORIZED, "Missing Authorization header".to_string()))?;
+
+    let _token = auth_header
+        .strip_prefix("Bearer ")
+        .ok_or_else(|| (StatusCode::BAD_REQUEST, "Invalid Authorization token format".to_string()))?;
+
+    let parts: Vec<&str> = payload.repo_full_name.split('/').collect();
+    if parts.len() != 2 {
+        return Err((StatusCode::BAD_REQUEST, "Invalid repo_full_name format".to_string()));
+    }
+    let owner = parts[0];
+    let repo = parts[1];
+
+    let app_id_str = std::env::var("GITHUB_APP_ID")
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "GITHUB_APP_ID not set".to_string()))?;
+    let app_id = app_id_str.parse::<u64>()
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "GITHUB_APP_ID is not a valid number".to_string()))?;
+    let private_key_pem = std::env::var("GITHUB_PRIVATE_KEY")
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "GITHUB_PRIVATE_KEY not set".to_string()))?;
+    let private_key_pem = private_key_pem.trim_matches('"');
+    let key = jsonwebtoken::EncodingKey::from_rsa_pem(private_key_pem.as_bytes())
+        .map_err(|e| {
+            error!("Invalid private key: {}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, "Internal configuration error".to_string())
+        })?;
+    let app_client = octocrab::Octocrab::builder()
+        .app(octocrab::models::AppId(app_id), key)
+        .build()
+        .map_err(|e| {
+            error!("Failed to build app client: {}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, "Internal configuration error".to_string())
+        })?;
+    let installation = match app_client
+        .apps()
+        .get_repository_installation(owner, repo)
+        .await
+    {
+        Ok(inst) => inst,
+        Err(e) => {
+            error!("Failed to get repository installation: {}", e);
+            return Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to retrieve repository installation details".to_string()));
+        }
+    };
+    let octo = app_client
+        .installation(installation.id)
+        .map_err(|e| {
+            error!("Failed to build installation client: {}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, "Internal configuration error".to_string())
+        })?;
+
+    let webhook_url = format!("{}/webhook", state.base_url);
+    let hooks_url = format!("/repos/{}/{}/hooks", owner, repo);
+    if let Ok(hooks) = octo.get::<Vec<serde_json::Value>, _, _>(&hooks_url, None::<&()>).await {
+        for hook in hooks {
+            if let Some(config) = hook.get("config") {
+                if let Some(url) = config.get("url").and_then(|u| u.as_str()) {
+                    if url == webhook_url {
+                        if let Some(hook_id) = hook.get("id").and_then(|id| id.as_u64()) {
+                            let delete_url = format!("/repos/{}/{}/hooks/{}", owner, repo, hook_id);
+                            let _: Result<serde_json::Value, _> = octo.delete(&delete_url, None::<&()>).await;
+                            info!("Deleted webhook {} in {}/{}", hook_id, owner, repo);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let content_path = "SCORE.md";
+    if let Ok(content_items) = octo.repos(owner, repo).get_content().path(content_path).send().await {
+        if let Some(file_content) = content_items.items.first() {
+            let delete_res = octo
+                .repos(owner, repo)
+                .delete_file(content_path, "chore: remove repogee SCORE.md", file_content.sha.clone())
+                .send()
+                .await;
+            if let Err(e) = delete_res {
+                warn!("Failed to delete SCORE.md in {}/{}: {}", owner, repo, e);
+            } else {
+                info!("Deleted SCORE.md in {}/{}", owner, repo);
+            }
+        }
+    }
+
+    let workflow_path = ".github/workflows/repogee.yml";
+    if let Ok(content_items) = octo.repos(owner, repo).get_content().path(workflow_path).send().await {
+        if let Some(file_content) = content_items.items.first() {
+            let delete_res = octo
+                .repos(owner, repo)
+                .delete_file(workflow_path, "chore: remove repogee workflow", file_content.sha.clone())
+                .send()
+                .await;
+            if let Err(e) = delete_res {
+                warn!("Failed to delete repogee.yml in {}/{}: {}", owner, repo, e);
+            } else {
+                info!("Deleted repogee.yml in {}/{}", owner, repo);
+            }
+        }
+    }
+
+    Ok((StatusCode::OK, axum::Json(serde_json::json!({
+        "status": "success",
+        "message": "Repository disconnected successfully"
     }))))
 }
 
