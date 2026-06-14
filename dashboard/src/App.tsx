@@ -150,6 +150,18 @@ export default function App() {
       if (wasOnboarded) {
         showToast('Workflow updated!')
       }
+
+      try {
+        const reposRes = await fetch(`${API_URL}/api/repos`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (reposRes.ok) {
+          const reposData = await reposRes.json()
+          setRepos(reposData)
+        }
+      } catch (e) {
+        console.error("Failed to refresh repositories list:", e)
+      }
     } else {
       const errText = await res.text();
       console.error("Onboarding failed:", res.status, errText);
