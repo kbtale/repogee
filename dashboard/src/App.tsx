@@ -174,10 +174,10 @@ export default function App() {
                 })`
               }}
             >
-              <div class="w-1/3 shrink-0 min-h-screen">
+              <div class={`w-1/3 shrink-0 ${view() !== 'landing' ? 'h-0 overflow-hidden' : 'min-h-screen'}`}>
                 <LandingView onLogin={handleLogin} theme={theme()} onToggleTheme={toggleTheme} />
               </div>
-              <div class="w-1/3 shrink-0 min-h-screen">
+              <div class={`w-1/3 shrink-0 ${view() !== 'setup' ? 'h-0 overflow-hidden' : 'min-h-screen'}`}>
                 <Show when={user()}>
                   <SetupView
                     user={user()!}
@@ -193,7 +193,7 @@ export default function App() {
                   />
                 </Show>
               </div>
-              <div class="w-1/3 shrink-0 min-h-screen">
+              <div class={`w-1/3 shrink-0 ${view() !== 'leaderboard' ? 'h-0 overflow-hidden' : 'min-h-screen'}`}>
                 <Show when={selectedRepo()}>
                   <LeaderboardView
                     user={user()!}
