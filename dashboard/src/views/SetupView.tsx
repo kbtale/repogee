@@ -244,10 +244,10 @@ export default function SetupView(props: SetupViewProps) {
                   <button
                     disabled={loadingRepo() !== null}
                     onClick={() => repo.onboarded ? props.onViewLeaderboard(repo.full_name) : handleOnboard(repo.full_name)}
-                    class={`w-full py-3 px-4 rounded-full font-montserrat font-bold text-[10px] tracking-widest uppercase transition-all duration-200 cursor-pointer ${
+                    class={`w-full py-3 px-4 rounded-full font-montserrat font-bold text-xs border transition-all duration-200 cursor-pointer bg-transparent ${
                       repo.onboarded
-                        ? "bg-transparent border border-theme-accent text-theme-accent hover:bg-theme-accent hover:text-[#070A13]"
-                        : "bg-theme-accent hover:bg-theme-primary hover:text-theme-bg text-[#070A13]"
+                        ? "border-theme-accent text-theme-accent hover:bg-theme-accent hover:text-[#070A13]"
+                        : "border-theme-accent text-theme-accent hover:bg-theme-accent hover:text-[#070A13]"
                     }`}
                   >
                     {loadingRepo() === repo.full_name && !repo.onboarded ? (
@@ -255,35 +255,35 @@ export default function SetupView(props: SetupViewProps) {
                         <svg class="animate-spin w-3.5 h-3.5" viewBox="0 0 16 16" fill="currentColor">
                           <path fill-rule="evenodd" d="M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5 5 0 0 0 8 3M3.1 9a5.002 5.002 0 0 0 8.757 2.182.5.5 0 1 1 .771.636A6.002 6.002 0 0 1 2.083 9z"/>
                         </svg>
-                        CONNECTING...
+                        Connecting...
                       </span>
                     ) : repo.onboarded ? (
-                      "VIEW LEADERBOARD"
+                      "View Leaderboard"
                     ) : (
-                      "CONNECT REPO"
+                      "Connect Repo"
                     )}
                   </button>
                   <Show when={repo.onboarded}>
                     <button
                       disabled={loadingRepo() !== null}
                       onClick={() => handleOnboard(repo.full_name)}
-                      class="w-full py-3 px-4 rounded-full font-montserrat font-bold text-[10px] tracking-widest uppercase transition-all duration-200 cursor-pointer bg-transparent border border-theme-border text-theme-secondary hover:border-theme-accent hover:text-theme-primary"
+                      class="w-full py-3 px-4 rounded-full font-montserrat font-bold text-xs border transition-all duration-200 cursor-pointer bg-transparent border-theme-border text-theme-secondary hover:border-theme-accent hover:text-theme-primary"
                     >
                       {loadingRepo() === repo.full_name ? (
                         <span class="flex items-center justify-center gap-2">
                           <svg class="animate-spin w-3.5 h-3.5" viewBox="0 0 16 16" fill="currentColor">
                             <path fill-rule="evenodd" d="M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5 5 0 0 0 8 3M3.1 9a5.002 5.002 0 0 0 8.757 2.182.5.5 0 1 1 .771.636A6.002 6.002 0 0 1 2.083 9z"/>
                           </svg>
-                          UPDATING...
+                          Updating...
                         </span>
                       ) : (
-                        "UPDATE WORKFLOW"
+                        "Update Workflow"
                       )}
                     </button>
                     <button
                       disabled={loadingRepo() !== null}
                       onClick={() => handleOffboard(repo.full_name)}
-                      class="w-full py-3 px-4 rounded-full font-montserrat font-bold text-[10px] tracking-widest uppercase transition-all duration-200 cursor-pointer bg-transparent border border-transparent text-theme-secondary hover:text-[#FE5F55] mt-1"
+                      class="w-full py-3 px-4 rounded-full font-montserrat font-bold text-xs border transition-all duration-200 cursor-pointer bg-transparent border-red-500/30 text-red-500 hover:border-red-500 hover:bg-red-500/10 mt-1"
                     >
                       {loadingRepo() === `off_${repo.full_name}` ? (
                         <span class="flex items-center justify-center gap-2">
@@ -293,7 +293,7 @@ export default function SetupView(props: SetupViewProps) {
                           Disconnecting...
                         </span>
                       ) : (
-                        "DISCONNECT REPO"
+                        "Disconnect Repo"
                       )}
                     </button>
                   </Show>
