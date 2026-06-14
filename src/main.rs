@@ -503,6 +503,9 @@ async fn repos_handler(
 
     let mut join_set = tokio::task::JoinSet::new();
     for repo in page {
+        if repo.archived.unwrap_or(false) {
+            continue;
+        }
         let octo = octo.clone();
         join_set.spawn(async move {
             let full_name = repo.full_name.clone().unwrap_or_default();
@@ -644,53 +647,112 @@ async fn onboard_handler(
         })?;
 
     let content_path = "SCORE.md";
-    let exists = octo
-        .repos(owner, repo)
-        .get_content()
-        .path(content_path)
-        .send()
-        .await
-        .is_ok();
-
-    let mut score_created = false;
-    if !exists {
-        let mut initial_stats = Vec::new();
-        if let Ok(contrib_page) = octo.repos(owner, repo).list_contributors().send().await {
-            for contributor in contrib_page.items {
-                let username = contributor.author.login.clone();
-                let initial_xp = contributor.contributions * 20;
-                let level = engine::calculator::calculate_level(initial_xp);
-                initial_stats.push(github::parser::UserStats {
-                    username,
-                    class: engine::classes::FuturisticClass::BackendDeveloper,
-                    subclass: "General Developer".to_string(),
-                    level,
-                    xp: initial_xp,
-                    last_active: None,
-                });
+    let (mut user_stats, existing_sha) = match github::state::fetch_score_file(&octo, owner, repo).await {
+        Ok((content, sha)) => {
+            let parsed = github::parser::parse_score_file(&content);
+            if parsed.is_empty() {
+                warn!("Fetched SCORE.md was empty or failed to parse for {}/{}", owner, repo);
             }
+            (parsed, sha)
         }
-        initial_stats.sort_by(|a, b| b.xp.cmp(&a.xp));
-        let default_score = github::parser::generate_score_file(&initial_stats);
-        match octo
-            .repos(owner, repo)
-            .create_file(content_path, "chore: initialize repogee SCORE.md", default_score)
-            .send()
-            .await
-        {
-            Ok(_) => {
-                info!("Created SCORE.md in {}/{}", owner, repo);
-                score_created = true;
-            }
-            Err(e) => {
-                error!("Failed to create SCORE.md in {}/{}: {}", owner, repo, e);
-                return Err((
-                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                    "Failed to initialize leaderboard file".to_string(),
-                ));
-            }
+        Err(e) => {
+            info!("No existing SCORE.md found or failed to fetch for {}/{}: {}", owner, repo, e);
+            (Vec::new(), None)
+        }
+    };
+
+    let mut user_login = None;
+    if let Ok(user_client) = octocrab::Octocrab::builder()
+        .personal_token(_token.to_string())
+        .build()
+    {
+        if let Ok(user) = user_client.current().user().await {
+            user_login = Some(user.login);
         }
     }
+
+    match octo.repos(owner, repo).list_contributors().send().await {
+        Ok(contrib_page) => {
+            info!("Fetched {} contributors from GitHub API for {}/{}", contrib_page.items.len(), owner, repo);
+            for contributor in contrib_page.items {
+                let username = contributor.author.login.clone();
+                let api_contributions = contributor.contributions;
+                let api_xp = api_contributions * 20;
+
+                if let Some(existing_user) = user_stats.iter_mut().find(|u| u.username.eq_ignore_ascii_case(&username)) {
+                    if api_xp > existing_user.xp {
+                        existing_user.xp = api_xp;
+                        existing_user.level = engine::calculator::calculate_level(api_xp);
+                    }
+                } else {
+                    let level = engine::calculator::calculate_level(api_xp);
+                    user_stats.push(github::parser::UserStats {
+                        username,
+                        class: engine::classes::FuturisticClass::BackendDeveloper,
+                        subclass: "General Developer".to_string(),
+                        level,
+                        xp: api_xp,
+                        last_active: None,
+                    });
+                }
+            }
+        }
+        Err(e) => {
+            warn!("Failed to fetch contributors list from GitHub API for {}/{}: {}", owner, repo, e);
+        }
+    }
+
+    if user_stats.is_empty() {
+        if let Some(username) = user_login {
+            info!("User stats is empty after contributors fetch; seeding with onboarding user {}", username);
+            user_stats.push(github::parser::UserStats {
+                username,
+                class: engine::classes::FuturisticClass::BackendDeveloper,
+                subclass: "General Developer".to_string(),
+                level: 1,
+                xp: 20,
+                last_active: None,
+            });
+        } else {
+            info!("User stats is empty and user login not fetched; seeding with repo owner {}", owner);
+            user_stats.push(github::parser::UserStats {
+                username: owner.to_string(),
+                class: engine::classes::FuturisticClass::BackendDeveloper,
+                subclass: "General Developer".to_string(),
+                level: 1,
+                xp: 20,
+                last_active: None,
+            });
+        }
+    }
+
+    user_stats.sort_by(|a, b| b.xp.cmp(&a.xp));
+    let updated_score = github::parser::generate_score_file(&user_stats);
+
+    let score_created = existing_sha.is_none();
+    let save_res = match existing_sha {
+        Some(sha) => {
+            octo.repos(owner, repo)
+                .update_file(content_path, "chore: update repogee SCORE.md", updated_score, sha)
+                .send()
+                .await
+        }
+        None => {
+            octo.repos(owner, repo)
+                .create_file(content_path, "chore: initialize repogee SCORE.md", updated_score)
+                .send()
+                .await
+        }
+    };
+
+    if let Err(e) = save_res {
+        error!("Failed to save SCORE.md in {}/{}: {}", owner, repo, e);
+        return Err((
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to save leaderboard file".to_string(),
+        ));
+    }
+
 
     let workflow_path = ".github/workflows/repogee.yml";
     let workflow_content = "name: Repogee Leaderboard\n\non:\n  pull_request:\n    types: [opened, closed]\n  issues:\n    types: [opened, closed]\n  issue_comment:\n    types: [created]\n  push:\n    branches: [main]\n\npermissions:\n  contents: write\n\njobs:\n  gamify:\n    runs-on: ubuntu-latest\n    steps:\n      - name: Checkout Code\n        uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n\n      - name: Run Repogee Leaderboard\n        uses: kbtale/repogee@main\n";
