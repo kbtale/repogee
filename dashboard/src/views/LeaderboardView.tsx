@@ -657,25 +657,67 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
             </Match>
             <Match when={activeTab() === 'settings'}>
               <div class="flex-1 overflow-y-auto px-4 sm:px-6 py-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="bg-theme-card border border-theme-border rounded-3xl p-6 sm:p-8 transition-colors duration-200 flex flex-col gap-6">
-                  <div>
-                    <h2 class="font-montserrat text-base sm:text-lg font-extrabold tracking-widest uppercase mb-2 text-theme-primary">Repository Integration</h2>
-                    <p class="text-xs text-theme-secondary font-hind">Configure and copy the GitHub Action workflow for this repository.</p>
-                  </div>
-                  
-                  <div class="flex flex-col gap-4">
-                    <div class="p-4 bg-theme-bg border border-theme-border/40 rounded-2xl">
-                      <span class="text-[9px] text-theme-secondary font-molengo uppercase tracking-wider">GitHub App Mode</span>
-                      <div class="flex items-center gap-2 mt-1.5">
-                        <span class="w-2.5 h-2.5 rounded-full bg-theme-accent"></span>
-                        <span class="font-montserrat text-xs font-bold text-theme-primary">Active Hook Integration</span>
-                      </div>
+                <div class="flex flex-col gap-6">
+                  <div class="bg-theme-card border border-theme-border rounded-3xl p-6 sm:p-8 transition-colors duration-200 flex flex-col gap-6">
+                    <div>
+                      <h2 class="font-montserrat text-base sm:text-lg font-extrabold tracking-widest uppercase mb-2 text-theme-primary">Repository Integration</h2>
+                      <p class="text-xs text-theme-secondary font-hind">Configure app integrations and view repository access settings.</p>
                     </div>
+                    
+                    <div class="flex flex-col gap-4">
+                      <div class="p-4 bg-theme-bg border border-theme-border/40 rounded-2xl">
+                        <span class="text-[9px] text-theme-secondary font-molengo uppercase tracking-wider">GitHub App Mode</span>
+                        <div class="flex items-center gap-2 mt-1.5">
+                          <span class="w-2.5 h-2.5 rounded-full bg-theme-accent"></span>
+                          <span class="font-montserrat text-xs font-bold text-theme-primary">Active Hook Integration</span>
+                        </div>
+                      </div>
 
-                    <div class="p-4 bg-theme-bg border border-theme-border/40 rounded-2xl">
-                      <span class="text-[9px] text-theme-secondary font-molengo uppercase tracking-wider">Webhook URL</span>
-                      <div class="font-hind text-xs text-theme-primary mt-1 break-all select-all font-semibold">
-                        {API_URL}/webhook
+                      <a
+                        href="https://github.com/settings/installations"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="flex items-center justify-between p-4 bg-theme-bg border border-theme-border/40 hover:border-theme-accent/60 rounded-2xl group transition-all duration-200"
+                      >
+                        <div class="flex flex-col">
+                          <span class="text-[9px] text-theme-secondary font-molengo uppercase tracking-wider">GitHub Settings</span>
+                          <span class="font-montserrat text-xs font-bold text-theme-primary mt-1">Configure App Access</span>
+                        </div>
+                        <svg class="w-4 h-4 text-theme-secondary group-hover:text-theme-accent transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14 21 3"/></svg>
+                      </a>
+                    </div>
+                  </div>
+
+                  <div class="bg-theme-card border border-theme-border rounded-3xl p-6 sm:p-8 transition-colors duration-200 flex flex-col gap-6">
+                    <div>
+                      <h2 class="font-montserrat text-base sm:text-lg font-extrabold tracking-widest uppercase mb-2 text-theme-primary">XP Cheat Sheet</h2>
+                      <p class="text-xs text-theme-secondary font-hind">Awarded experience points across active repository contributions.</p>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-3">
+                      <div class="p-3 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
+                        <span class="text-xs text-theme-primary font-hind">PR Merge</span>
+                        <span class="text-xs font-bold text-theme-accent font-montserrat">+50 XP</span>
+                      </div>
+                      <div class="p-3 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
+                        <span class="text-xs text-theme-primary font-hind">Close Issue</span>
+                        <span class="text-xs font-bold text-theme-accent font-montserrat">+30 XP</span>
+                      </div>
+                      <div class="p-3 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
+                        <span class="text-xs text-theme-primary font-hind">Approved Review</span>
+                        <span class="text-xs font-bold text-theme-accent font-montserrat">+25 XP</span>
+                      </div>
+                      <div class="p-3 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
+                        <span class="text-xs text-theme-primary font-hind">Direct Commit</span>
+                        <span class="text-xs font-bold text-theme-accent font-montserrat">+10 XP</span>
+                      </div>
+                      <div class="p-3 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
+                        <span class="text-xs text-theme-primary font-hind">Open PR</span>
+                        <span class="text-xs font-bold text-theme-accent font-montserrat">+10 XP</span>
+                      </div>
+                      <div class="p-3 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
+                        <span class="text-xs text-theme-primary font-hind">Issue Comment</span>
+                        <span class="text-xs font-bold text-theme-accent font-montserrat">+2 XP</span>
                       </div>
                     </div>
                   </div>

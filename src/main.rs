@@ -428,7 +428,10 @@ async fn leaderboard_handler(
             let octo = octocrab::Octocrab::builder()
                 .personal_token(token.to_string())
                 .build()
-                .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("Octocrab build failed: {:?}", e)))?;
+                .map_err(|e| {
+                    error!("Octocrab build failed: {}", e);
+                    (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Internal authentication error".to_string())
+                })?;
             let parts: Vec<&str> = repo_full_name.split('/').collect();
             if parts.len() == 2 {
                 let owner = parts[0];
@@ -482,7 +485,10 @@ async fn repos_handler(
     let octo = octocrab::Octocrab::builder()
         .personal_token(token.to_string())
         .build()
-        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("Octocrab build failed: {:?}", e)))?;
+        .map_err(|e| {
+            error!("Octocrab build failed: {}", e);
+            (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Internal authentication error".to_string())
+        })?;
 
     let page = octo
         .current()
@@ -490,7 +496,10 @@ async fn repos_handler(
         .type_("owner")
         .send()
         .await
-        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch user repos: {:?}", e)))?;
+        .map_err(|e| {
+            error!("Failed to fetch user repos: {}", e);
+            (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Failed to fetch repositories".to_string())
+        })?;
 
     let mut join_set = tokio::task::JoinSet::new();
     for repo in page {
@@ -580,11 +589,17 @@ async fn onboard_handler(
         .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "GITHUB_PRIVATE_KEY not set".to_string()))?;
     let private_key_pem = private_key_pem.trim_matches('"');
     let key = jsonwebtoken::EncodingKey::from_rsa_pem(private_key_pem.as_bytes())
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Invalid private key: {:?}", e)))?;
+        .map_err(|e| {
+            error!("Invalid private key: {}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, "Internal configuration error".to_string())
+        })?;
     let app_client = octocrab::Octocrab::builder()
         .app(octocrab::models::AppId(app_id), key)
         .build()
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to build app client: {:?}", e)))?;
+        .map_err(|e| {
+            error!("Failed to build app client: {}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, "Internal configuration error".to_string())
+        })?;
     let installation = match app_client
         .apps()
         .get_repository_installation(owner, repo)
@@ -617,12 +632,16 @@ async fn onboard_handler(
                 );
                 return Err((StatusCode::FORBIDDEN, body));
             }
-            return Err((StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to get repository installation: {:?}", e)));
+            error!("Failed to get repository installation: {}", e);
+            return Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to retrieve repository installation details".to_string()));
         }
     };
     let octo = app_client
         .installation(installation.id)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to build installation client: {:?}", e)))?;
+        .map_err(|e| {
+            error!("Failed to build installation client: {}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, "Internal configuration error".to_string())
+        })?;
 
     let content_path = "SCORE.md";
     let exists = octo
@@ -635,7 +654,24 @@ async fn onboard_handler(
 
     let mut score_created = false;
     if !exists {
-        let default_score = github::parser::get_default_score_file();
+        let mut initial_stats = Vec::new();
+        if let Ok(contrib_page) = octo.repos(owner, repo).list_contributors().send().await {
+            for contributor in contrib_page.items {
+                let username = contributor.author.login.clone();
+                let initial_xp = contributor.contributions * 20;
+                let level = engine::calculator::calculate_level(initial_xp);
+                initial_stats.push(github::parser::UserStats {
+                    username,
+                    class: engine::classes::FuturisticClass::BackendDeveloper,
+                    subclass: "General Developer".to_string(),
+                    level,
+                    xp: initial_xp,
+                    last_active: None,
+                });
+            }
+        }
+        initial_stats.sort_by(|a, b| b.xp.cmp(&a.xp));
+        let default_score = github::parser::generate_score_file(&initial_stats);
         match octo
             .repos(owner, repo)
             .create_file(content_path, "chore: initialize repogee SCORE.md", default_score)
@@ -647,10 +683,10 @@ async fn onboard_handler(
                 score_created = true;
             }
             Err(e) => {
-                warn!("Failed to create SCORE.md in {}/{}: {:?}", owner, repo, e);
+                error!("Failed to create SCORE.md in {}/{}: {}", owner, repo, e);
                 return Err((
                     axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                    format!("Failed to create SCORE.md on GitHub: {:?}", e),
+                    "Failed to initialize leaderboard file".to_string(),
                 ));
             }
         }
@@ -686,10 +722,10 @@ async fn onboard_handler(
                         .send()
                         .await
                     {
-                        warn!("Failed to update repogee.yml in {}/{}: {:?}", owner, repo, e);
+                        error!("Failed to update repogee.yml in {}/{}: {}", owner, repo, e);
                         return Err((
                             axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                            format!("Failed to update repogee.yml on GitHub: {:?}", e),
+                            "Failed to update repository integration workflow".to_string(),
                         ));
                     }
                 }
@@ -702,10 +738,10 @@ async fn onboard_handler(
                 .send()
                 .await
             {
-                warn!("Failed to create repogee.yml in {}/{}: {:?}", owner, repo, e);
+                error!("Failed to create repogee.yml in {}/{}: {}", owner, repo, e);
                 return Err((
                     axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                    format!("Failed to create repogee.yml on GitHub: {:?}", e),
+                    "Failed to create repository integration workflow".to_string(),
                 ));
             }
         }
@@ -744,11 +780,11 @@ async fn onboard_handler(
                     info!("Webhook already exists in {}/{}", owner, repo);
                     "already_exists"
                 } else {
-                    warn!("Failed to create webhook in {}/{}: {:?}", owner, repo, e);
+                    warn!("Failed to create webhook in {}/{}: {}", owner, repo, e.to_string());
                     "failed"
                 }
             } else {
-                warn!("Failed to create webhook in {}/{}: {:?}", owner, repo, e);
+                warn!("Failed to create webhook in {}/{}: {}", owner, repo, e.to_string());
                 "failed"
             }
         }

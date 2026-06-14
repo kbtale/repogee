@@ -1,4 +1,4 @@
-import { createSignal, onMount, Switch, Match, Show, createEffect } from 'solid-js'
+import { createSignal, onMount, Switch, Match, Show } from 'solid-js'
 import LandingView from './views/LandingView'
 import SetupView from './views/SetupView'
 import LeaderboardView from './views/LeaderboardView'
@@ -12,8 +12,31 @@ interface Repo {
   onboarded: boolean
 }
 
+type ViewName = 'landing' | 'setup' | 'leaderboard'
+const VIEW_ORDER: ViewName[] = ['landing', 'setup', 'leaderboard']
+
 export default function App() {
-  const [view, setView] = createSignal<'landing' | 'setup' | 'leaderboard'>('landing')
+  const [activeView, setActiveView] = createSignal<ViewName>('landing')
+  const [exitingView, setExitingView] = createSignal<ViewName | null>(null)
+  const [transitionDir, setTransitionDir] = createSignal<'forward' | 'backward'>('forward')
+  const [isTransitioning, setIsTransitioning] = createSignal(false)
+
+  const navigateTo = (next: ViewName) => {
+    const current = activeView()
+    if (current === next || isTransitioning()) return
+    const dir = VIEW_ORDER.indexOf(next) > VIEW_ORDER.indexOf(current) ? 'forward' : 'backward'
+    setTransitionDir(dir)
+    setExitingView(current)
+    setActiveView(next)
+    setIsTransitioning(true)
+    window.scrollTo({ top: 0, behavior: 'instant' })
+  }
+
+  const onTransitionEnd = () => {
+    setExitingView(null)
+    setIsTransitioning(false)
+  }
+
   const [loading, setLoading] = createSignal(false)
   const [user, setUser] = createSignal<{ login: string; avatar_url: string; name: string | null } | null>(null)
   const [repos, setRepos] = createSignal<Repo[]>([])
@@ -33,11 +56,6 @@ export default function App() {
   }
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
-
-  createEffect(() => {
-    view()
-    window.scrollTo({ top: 0, behavior: 'instant' })
-  })
 
   onMount(async () => {
     const savedTheme = localStorage.getItem('theme') || 'dark'
@@ -83,10 +101,10 @@ export default function App() {
           setSelectedRepo(activeOnboarded.full_name)
         }
 
-        setView('setup')
+        setActiveView('setup')
       } catch (err) {
         localStorage.removeItem('token')
-        setView('landing')
+        setActiveView('landing')
       } finally {
         setLoading(false)
       }
@@ -152,7 +170,47 @@ export default function App() {
     setUser(null)
     setRepos([])
     setSelectedRepo(null)
-    setView('landing')
+    navigateTo('landing')
+  }
+
+  const renderView = (name: ViewName, animClass: string) => {
+    return (
+      <div class={`view-panel ${animClass}`} onAnimationEnd={animClass.includes('exit') ? onTransitionEnd : undefined}>
+        <Switch>
+          <Match when={name === 'landing'}>
+            <LandingView onLogin={handleLogin} theme={theme()} onToggleTheme={toggleTheme} />
+          </Match>
+          <Match when={name === 'setup'}>
+            <Show when={user()}>
+              <SetupView
+                user={user()!}
+                repos={repos()}
+                theme={theme()}
+                onToggleTheme={toggleTheme}
+                onOnboard={handleOnboard}
+                onViewLeaderboard={(repoFullName) => {
+                  setSelectedRepo(repoFullName)
+                  navigateTo('leaderboard')
+                }}
+                onLogout={handleLogout}
+              />
+            </Show>
+          </Match>
+          <Match when={name === 'leaderboard'}>
+            <Show when={selectedRepo()}>
+              <LeaderboardView
+                user={user()!}
+                selectedRepo={selectedRepo()!}
+                theme={theme()}
+                onToggleTheme={toggleTheme}
+                onBack={() => navigateTo('setup')}
+                onLogout={handleLogout}
+              />
+            </Show>
+          </Match>
+        </Switch>
+      </div>
+    )
   }
 
   return (
@@ -165,47 +223,21 @@ export default function App() {
           </div>
         </Match>
         <Match when={!loading()}>
-          <div class="relative w-full overflow-x-hidden min-h-screen">
-            <div
-              class="transition-transform duration-500 ease-out flex w-[300%]"
-              style={{
-                transform: `translateX(-${
-                  view() === 'landing' ? '0%' : view() === 'setup' ? '33.333333%' : '66.666667%'
-                })`
-              }}
-            >
-              <div class={`w-1/3 shrink-0 ${view() !== 'landing' ? 'h-0 overflow-hidden' : 'min-h-screen'}`}>
-                <LandingView onLogin={handleLogin} theme={theme()} onToggleTheme={toggleTheme} />
-              </div>
-              <div class={`w-1/3 shrink-0 ${view() !== 'setup' ? 'h-0 overflow-hidden' : 'min-h-screen'}`}>
-                <Show when={user()}>
-                  <SetupView
-                    user={user()!}
-                    repos={repos()}
-                    theme={theme()}
-                    onToggleTheme={toggleTheme}
-                    onOnboard={handleOnboard}
-                    onViewLeaderboard={(repoFullName) => {
-                      setSelectedRepo(repoFullName)
-                      setView('leaderboard')
-                    }}
-                    onLogout={handleLogout}
-                  />
-                </Show>
-              </div>
-              <div class={`w-1/3 shrink-0 ${view() !== 'leaderboard' ? 'h-0 overflow-hidden' : 'min-h-screen'}`}>
-                <Show when={selectedRepo()}>
-                  <LeaderboardView
-                    user={user()!}
-                    selectedRepo={selectedRepo()!}
-                    theme={theme()}
-                    onToggleTheme={toggleTheme}
-                    onBack={() => setView('setup')}
-                    onLogout={handleLogout}
-                  />
-                </Show>
-              </div>
-            </div>
+          <div class="view-container">
+            {/* Exiting view (old) — mounted only during transition */}
+            <Show when={exitingView()}>
+              {(exiting) => renderView(
+                exiting(),
+                transitionDir() === 'forward' ? 'view-exit-left' : 'view-exit-right'
+              )}
+            </Show>
+            {/* active view */}
+            {renderView(
+              activeView(),
+              isTransitioning()
+                ? (transitionDir() === 'forward' ? 'view-enter-from-right' : 'view-enter-from-left')
+                : 'view-idle'
+            )}
           </div>
         </Match>
       </Switch>
