@@ -7,6 +7,7 @@ interface Repo {
   description: string | null
   private: boolean
   onboarded: boolean
+  installed: boolean
   contributors_count?: number
 }
 
@@ -230,8 +231,8 @@ export default function SetupView(props: SetupViewProps) {
                           {repo.contributors_count || 0} users
                         </span>
                       </Show>
-                      <span class={`badge shrink-0 ${repo.onboarded ? "badge-accent" : "badge-secondary"}`}>
-                        {repo.onboarded ? "connected" : "ready"}
+                      <span class={`badge shrink-0 ${repo.onboarded ? "badge-accent" : (repo.installed ? "badge-secondary" : "border-red-500/20 text-red-400 bg-red-950/20")}`}>
+                        {repo.onboarded ? "connected" : (repo.installed ? "ready" : "no access")}
                       </span>
                     </div>
                   </div>
@@ -255,8 +256,10 @@ export default function SetupView(props: SetupViewProps) {
                       </span>
                     ) : repo.onboarded ? (
                       "View Leaderboard"
-                    ) : (
+                    ) : repo.installed ? (
                       "Connect Repo"
+                    ) : (
+                      "Configure App"
                     )}
                   </button>
                   <Show when={repo.onboarded}>

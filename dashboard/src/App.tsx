@@ -10,6 +10,7 @@ interface Repo {
   description: string | null
   private: boolean
   onboarded: boolean
+  installed: boolean
 }
 
 type ViewName = 'landing' | 'setup' | 'leaderboard'
@@ -129,6 +130,13 @@ export default function App() {
   const handleOnboard = async (repoFullName: string) => {
     const token = localStorage.getItem('token')
     if (!token) return
+
+    const repoInfo = repos().find((r) => r.full_name === repoFullName)
+    if (repoInfo && !repoInfo.installed) {
+      setInstallModalRepo(repoFullName)
+      setInstallModalUrl("https://github.com/apps/repogee/installations/new")
+      return
+    }
 
     const res = await fetch(`${API_URL}/api/onboard`, {
       method: 'POST',
