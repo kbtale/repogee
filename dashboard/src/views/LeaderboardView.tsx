@@ -793,30 +793,81 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
                       <p class="text-xs text-theme-secondary font-hind">Awarded experience points across active repository contributions.</p>
                     </div>
                     
-                    <div class="grid grid-cols-2 gap-3">
-                      <div class="p-3 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
-                        <span class="text-xs text-theme-primary font-hind">PR Merge</span>
-                        <span class="text-xs font-bold text-theme-accent font-montserrat">+50 XP</span>
+                    <div class="flex flex-col gap-4">
+                      <div>
+                        <h3 class="text-[10px] font-bold text-theme-secondary uppercase tracking-wider mb-2.5">Base Actions</h3>
+                        <div class="grid grid-cols-2 gap-2.5">
+                          <div class="p-2.5 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
+                            <span class="text-[11px] text-theme-primary font-hind">PR Merge</span>
+                            <span class="text-[11px] font-bold text-theme-accent font-montserrat">+50 XP</span>
+                          </div>
+                          <div class="p-2.5 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
+                            <span class="text-[11px] text-theme-primary font-hind">Publish Release</span>
+                            <span class="text-[11px] font-bold text-theme-accent font-montserrat">+100 XP</span>
+                          </div>
+                          <div class="p-2.5 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
+                            <span class="text-[11px] text-theme-primary font-hind">Close Issue</span>
+                            <span class="text-[11px] font-bold text-theme-accent font-montserrat">+30 XP</span>
+                          </div>
+                          <div class="p-2.5 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
+                            <span class="text-[11px] text-theme-primary font-hind">Approved Review</span>
+                            <span class="text-[11px] font-bold text-theme-accent font-montserrat">+25 XP</span>
+                          </div>
+                          <div class="p-2.5 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
+                            <span class="text-[11px] text-theme-primary font-hind">Wiki Update</span>
+                            <span class="text-[11px] font-bold text-theme-accent font-montserrat">+20 XP</span>
+                          </div>
+                          <div class="p-2.5 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
+                            <span class="text-[11px] text-theme-primary font-hind">Direct Commit</span>
+                            <span class="text-[11px] font-bold text-theme-accent font-montserrat">+10 XP</span>
+                          </div>
+                          <div class="p-2.5 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
+                            <span class="text-[11px] text-theme-primary font-hind">Open PR / Issue</span>
+                            <span class="text-[11px] font-bold text-theme-accent font-montserrat">+10 XP</span>
+                          </div>
+                          <div class="p-2.5 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
+                            <span class="text-[11px] text-theme-primary font-hind">Review / Comment</span>
+                            <span class="text-[11px] font-bold text-theme-accent font-montserrat">+5 XP</span>
+                          </div>
+                          <div class="p-2.5 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
+                            <span class="text-[11px] text-theme-primary font-hind">Resolve Conflict</span>
+                            <span class="text-[11px] font-bold text-theme-accent font-montserrat">+15 XP</span>
+                          </div>
+                          <div class="p-2.5 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
+                            <span class="text-[11px] text-theme-primary font-hind">Issue Comment</span>
+                            <span class="text-[11px] font-bold text-theme-accent font-montserrat">+2 XP</span>
+                          </div>
+                        </div>
                       </div>
-                      <div class="p-3 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
-                        <span class="text-xs text-theme-primary font-hind">Close Issue</span>
-                        <span class="text-xs font-bold text-theme-accent font-montserrat">+30 XP</span>
-                      </div>
-                      <div class="p-3 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
-                        <span class="text-xs text-theme-primary font-hind">Approved Review</span>
-                        <span class="text-xs font-bold text-theme-accent font-montserrat">+25 XP</span>
-                      </div>
-                      <div class="p-3 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
-                        <span class="text-xs text-theme-primary font-hind">Direct Commit</span>
-                        <span class="text-xs font-bold text-theme-accent font-montserrat">+10 XP</span>
-                      </div>
-                      <div class="p-3 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
-                        <span class="text-xs text-theme-primary font-hind">Open PR</span>
-                        <span class="text-xs font-bold text-theme-accent font-montserrat">+10 XP</span>
-                      </div>
-                      <div class="p-3 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
-                        <span class="text-xs text-theme-primary font-hind">Issue Comment</span>
-                        <span class="text-xs font-bold text-theme-accent font-montserrat">+2 XP</span>
+
+                      <div class="mt-2">
+                        <h3 class="text-[10px] font-bold text-theme-secondary uppercase tracking-wider mb-2.5">Special Bonuses</h3>
+                        <div class="grid grid-cols-2 gap-2.5">
+                          <div class="p-2.5 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
+                            <span class="text-[11px] text-theme-primary font-hind">Colossal Contribution</span>
+                            <span class="text-[11px] font-bold text-theme-secondary font-montserrat">+40 XP</span>
+                          </div>
+                          <div class="p-2.5 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
+                            <span class="text-[11px] text-theme-primary font-hind">Refactoring Wizard</span>
+                            <span class="text-[11px] font-bold text-theme-secondary font-montserrat">+25 XP</span>
+                          </div>
+                          <div class="p-2.5 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
+                            <span class="text-[11px] text-theme-primary font-hind">Heavy Lifter</span>
+                            <span class="text-[11px] font-bold text-theme-secondary font-montserrat">+20 XP</span>
+                          </div>
+                          <div class="p-2.5 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
+                            <span class="text-[11px] text-theme-primary font-hind">Clean Slate</span>
+                            <span class="text-[11px] font-bold text-theme-secondary font-montserrat">+20 XP</span>
+                          </div>
+                          <div class="p-2.5 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
+                            <span class="text-[11px] text-theme-primary font-hind">Architect</span>
+                            <span class="text-[11px] font-bold text-theme-secondary font-montserrat">+15 XP</span>
+                          </div>
+                          <div class="p-2.5 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
+                            <span class="text-[11px] text-theme-primary font-hind">Doc Evangelist</span>
+                            <span class="text-[11px] font-bold text-theme-secondary font-montserrat">+15 XP</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
