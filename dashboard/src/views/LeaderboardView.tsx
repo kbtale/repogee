@@ -97,6 +97,27 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
     }
   })
 
+  const totalRepoXp = () => contributors().reduce((sum, c) => sum + c.xp, 0)
+  const repoLevel = () => Math.floor(Math.sqrt(totalRepoXp()) * 0.2) || 1
+  const getRepoRank = (lvl: number) => {
+    if (lvl >= 20) return 'Mythic Guild'
+    if (lvl >= 15) return 'Golden Sanctuary'
+    if (lvl >= 10) return 'Silver Citadel'
+    if (lvl >= 5) return 'Iron Forge'
+    return 'Novice Outpost'
+  }
+  const getNextLevelXp = (lvl: number) => Math.round(Math.pow((lvl + 1) / 0.2, 2))
+  const getCurrentLevelXp = (lvl: number) => Math.round(Math.pow(lvl / 0.2, 2))
+  const getLevelProgressPercent = () => {
+    const lvl = repoLevel()
+    const currentMin = getCurrentLevelXp(lvl)
+    const nextMax = getNextLevelXp(lvl)
+    const currentXp = totalRepoXp()
+    const range = nextMax - currentMin
+    if (range <= 0) return 0
+    return Math.max(0, Math.min(100, ((currentXp - currentMin) / range) * 100))
+  }
+
   const getRankColor = (index: number) => {
     if (index === 0) return 'text-[#070A13] border-theme-accent bg-theme-accent'
     if (index === 1) return 'text-[#070A13] border-theme-secondary bg-theme-secondary'
@@ -478,7 +499,7 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
                       <div class="bg-theme-bg border border-theme-border/40 rounded-3xl p-4 flex flex-col justify-between">
                         <span class="text-[9px] text-theme-secondary font-molengo uppercase tracking-wider">Cumulative Experience</span>
                         <div class="font-montserrat text-2xl font-extrabold text-theme-primary mt-2">
-                          {contributors().reduce((sum, c) => sum + c.xp, 0)}
+                          {totalRepoXp()}
                         </div>
                       </div>
 
@@ -498,30 +519,56 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
                     </div>
                   </div>
 
-                  <div class="bg-theme-card border border-theme-border rounded-3xl p-6 flex-1 transition-colors duration-200">
-                    <h2 class="font-montserrat text-sm font-extrabold tracking-widest uppercase mb-1 text-theme-primary">Progression Tiers</h2>
-                    <p class="text-[9px] text-theme-secondary font-molengo uppercase tracking-widest mb-6">Tiers & Milestones</p>
+                  <div class="bg-theme-card border border-theme-border rounded-3xl p-6 flex-1 transition-colors duration-200 flex flex-col justify-between">
+                    <div>
+                      <h2 class="font-montserrat text-sm font-extrabold tracking-widest uppercase mb-1 text-theme-primary">Repository Level</h2>
+                      <p class="text-[9px] text-theme-secondary font-molengo uppercase tracking-widest mb-6">Guild Rank & Milestones</p>
 
-                    <div class="flex flex-col gap-5">
-                      <div class="border-l-2 border-theme-accent pl-4">
-                        <div class="font-montserrat font-bold text-xs text-theme-primary">Vanguard Tier (Level 20+)</div>
-                        <p class="text-[10px] text-theme-secondary mt-1 leading-relaxed">
-                          Unlocked by core systems engineering and performance refactoring tasks.
-                        </p>
+                      <div class="flex items-center gap-4 mb-6">
+                        <div class="w-16 h-16 rounded-full border-2 border-theme-accent flex flex-col items-center justify-center bg-theme-bg shrink-0">
+                          <span class="text-[8px] font-molengo uppercase tracking-widest text-theme-secondary leading-none">Level</span>
+                          <span class="font-montserrat text-xl font-extrabold text-theme-primary mt-1">{repoLevel()}</span>
+                        </div>
+                        <div>
+                          <div class="font-montserrat font-bold text-sm text-theme-primary">{getRepoRank(repoLevel())}</div>
+                          <div class="text-[10px] text-theme-secondary mt-1 font-hind">
+                            {totalRepoXp()} / {getNextLevelXp(repoLevel())} total XP
+                          </div>
+                        </div>
                       </div>
 
-                      <div class="border-l-2 border-theme-secondary pl-4">
-                        <div class="font-montserrat font-bold text-xs text-theme-primary">Artisan Tier (Level 10-19)</div>
-                        <p class="text-[10px] text-theme-secondary mt-1 leading-relaxed">
-                          Achieved through consistent reviews, automation flows, and styling.
-                        </p>
+                      <div class="w-full bg-theme-bg/60 border border-theme-border/30 rounded-full h-2 overflow-hidden mb-6">
+                        <div
+                          class="bg-theme-accent h-full transition-all duration-500 rounded-full"
+                          style={{ width: `${getLevelProgressPercent()}%` }}
+                        ></div>
                       </div>
 
-                      <div class="border-l-2 border-theme-border pl-4">
-                        <div class="font-montserrat font-bold text-xs text-theme-primary">Novice Tier (Level 1-9)</div>
-                        <p class="text-[10px] text-theme-secondary mt-1 leading-relaxed">
-                          Starting path earned by closing detailed issues and commenting.
-                        </p>
+                      <div class="flex flex-col gap-4">
+                        <div class={`flex items-center gap-3 text-xs ${repoLevel() >= 5 ? 'text-theme-primary' : 'text-theme-secondary/60'}`}>
+                          <span class={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 text-[10px] ${repoLevel() >= 5 ? 'border-theme-accent bg-theme-accent text-[#070A13]' : 'border-theme-border/50'}`}>
+                            {repoLevel() >= 5 ? '✓' : '5'}
+                          </span>
+                          <span>Iron Forge: Advanced analytics unlocked</span>
+                        </div>
+                        <div class={`flex items-center gap-3 text-xs ${repoLevel() >= 10 ? 'text-theme-primary' : 'text-theme-secondary/60'}`}>
+                          <span class={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 text-[10px] ${repoLevel() >= 10 ? 'border-theme-accent bg-theme-accent text-[#070A13]' : 'border-theme-border/50'}`}>
+                            {repoLevel() >= 10 ? '✓' : '10'}
+                          </span>
+                          <span>Silver Citadel: Custom contributor badges</span>
+                        </div>
+                        <div class={`flex items-center gap-3 text-xs ${repoLevel() >= 15 ? 'text-theme-primary' : 'text-theme-secondary/60'}`}>
+                          <span class={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 text-[10px] ${repoLevel() >= 15 ? 'border-theme-accent bg-theme-accent text-[#070A13]' : 'border-theme-border/50'}`}>
+                            {repoLevel() >= 15 ? '✓' : '15'}
+                          </span>
+                          <span>Golden Sanctuary: Custom team titles</span>
+                        </div>
+                        <div class={`flex items-center gap-3 text-xs ${repoLevel() >= 20 ? 'text-theme-primary' : 'text-theme-secondary/60'}`}>
+                          <span class={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 text-[10px] ${repoLevel() >= 20 ? 'border-theme-accent bg-theme-accent text-[#070A13]' : 'border-theme-border/50'}`}>
+                            {repoLevel() >= 20 ? '✓' : '20'}
+                          </span>
+                          <span>Mythic Guild: Hall of Fame status</span>
+                        </div>
                       </div>
                     </div>
                   </div>
