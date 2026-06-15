@@ -118,6 +118,34 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
     return Math.max(0, Math.min(100, ((currentXp - currentMin) / range) * 100))
   }
 
+  const getXpDistribution = () => {
+    const list = contributors()
+    const total = totalRepoXp()
+    if (total === 0) return []
+    return list.map(c => ({
+      username: c.username,
+      percent: Math.round((c.xp / total) * 100),
+      xp: c.xp
+    })).sort((a, b) => b.xp - a.xp)
+  }
+
+  const getCommitDaysDistribution = () => {
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+    const counts = [0, 0, 0, 0, 0, 0, 0]
+    events().forEach(e => {
+      if (e.rawDate) {
+        const dayIdx = new Date(e.rawDate).getDay()
+        counts[dayIdx] += 1
+      }
+    })
+    const max = Math.max(...counts) || 1
+    return days.map((day, idx) => ({
+      day,
+      count: counts[idx],
+      percent: Math.round((counts[idx] / max) * 100)
+    }))
+  }
+
   const getRankColor = (index: number) => {
     if (index === 0) return 'text-[#070A13] border-theme-accent bg-theme-accent'
     if (index === 1) return 'text-[#070A13] border-theme-secondary bg-theme-secondary'
@@ -577,32 +605,56 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
             </Match>
             <Match when={activeTab() === 'analytics'}>
               <div class="flex-1 overflow-y-auto px-4 sm:px-6 py-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div class="bg-theme-card border border-theme-border rounded-3xl p-6 sm:p-8 transition-colors duration-200">
-                  <h2 class="font-montserrat text-base sm:text-lg font-extrabold tracking-widest uppercase mb-6 text-theme-primary">XP Contribution Analytics</h2>
-                  <div class="flex flex-col gap-4">
-                    <div class="flex items-center justify-between p-4 bg-theme-bg border border-theme-border/40 rounded-2xl">
-                      <span class="text-xs font-semibold text-theme-primary">Merged Pull Request (Base)</span>
-                      <span class="text-xs font-bold text-theme-accent">50 XP</span>
+                <div class="flex flex-col gap-6">
+                  <div class="bg-theme-card border border-theme-border rounded-3xl p-6 sm:p-8 transition-colors duration-200">
+                    <h2 class="font-montserrat text-sm font-extrabold tracking-widest uppercase mb-1 text-theme-primary">Team XP Balance</h2>
+                    <p class="text-[9px] text-theme-secondary font-molengo uppercase tracking-widest mb-6">Experience Point Distribution</p>
+                    <div class="flex flex-col gap-4">
+                      <For
+                        each={getXpDistribution()}
+                        fallback={
+                          <div class="py-6 text-center border border-dashed border-theme-border rounded-2xl bg-theme-bg">
+                            <p class="text-theme-secondary font-molengo text-xs italic">No XP distributed yet</p>
+                          </div>
+                        }
+                      >
+                        {(dist) => (
+                          <div class="flex flex-col">
+                            <div class="flex justify-between items-center text-xs font-semibold">
+                              <span class="text-theme-primary">@{dist.username}</span>
+                              <span class="text-theme-accent">{dist.xp} XP ({dist.percent}%)</span>
+                            </div>
+                            <div class="w-full bg-theme-bg/60 border border-theme-border/30 rounded-full h-1.5 overflow-hidden mt-1.5">
+                              <div
+                                class="bg-theme-accent h-full rounded-full transition-all duration-300"
+                                style={{ width: `${dist.percent}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        )}
+                      </For>
                     </div>
-                    <div class="flex items-center justify-between p-4 bg-theme-bg border border-theme-border/40 rounded-2xl">
-                      <span class="text-xs font-semibold text-theme-primary">Closed Issue (Base)</span>
-                      <span class="text-xs font-bold text-theme-accent">30 XP</span>
+                  </div>
+
+                  <div class="bg-theme-card border border-theme-border rounded-3xl p-6 sm:p-8 transition-colors duration-200">
+                    <h2 class="font-montserrat text-sm font-extrabold tracking-widest uppercase mb-1 text-theme-primary">Activity Cadence</h2>
+                    <p class="text-[9px] text-theme-secondary font-molengo uppercase tracking-widest mb-6">Commit Distribution by Day</p>
+                    <div class="flex flex-col gap-3.5">
+                      <For each={getCommitDaysDistribution()}>
+                        {(item) => (
+                          <div class="flex items-center gap-3">
+                            <span class="text-[10px] font-bold text-theme-secondary w-16 uppercase tracking-wider shrink-0">{item.day.substring(0, 3)}</span>
+                            <div class="flex-1 bg-theme-bg/60 border border-theme-border/30 rounded-full h-2 overflow-hidden">
+                              <div
+                                class="bg-theme-secondary h-full rounded-full transition-all duration-300"
+                                style={{ width: `${item.percent}%` }}
+                              ></div>
+                            </div>
+                            <span class="text-[10px] font-bold text-theme-primary w-6 text-right shrink-0">{item.count}</span>
+                          </div>
+                        )}
+                      </For>
                     </div>
-                    <div class="flex items-center justify-between p-4 bg-theme-bg border border-theme-border/40 rounded-2xl">
-                      <span class="text-xs font-semibold text-theme-primary">Approved Review (Base)</span>
-                      <span class="text-xs font-bold text-theme-accent">25 XP</span>
-                    </div>
-                    <div class="flex items-center justify-between p-4 bg-theme-bg border border-theme-border/40 rounded-2xl">
-                      <span class="text-xs font-semibold text-theme-primary">Opened Detailed Issue (Base)</span>
-                      <span class="text-xs font-bold text-theme-accent">10 XP</span>
-                    </div>
-                    <div class="flex items-center justify-between p-4 bg-theme-bg border border-theme-border/40 rounded-2xl">
-                      <span class="text-xs font-semibold text-theme-primary">Inline Review Comment (Base)</span>
-                      <span class="text-xs font-bold text-theme-accent">5 XP</span>
-                    </div>
-                    <p class="text-[10px] text-theme-secondary mt-2 leading-relaxed">
-                      Note: Additional XP bonuses are awarded for heavy refactoring, resolving merge conflicts, adding documentation, batch commits, and maintaining activity streaks.
-                    </p>
                   </div>
                 </div>
 
