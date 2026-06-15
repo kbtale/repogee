@@ -97,6 +97,55 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
     }
   })
 
+  const totalRepoXp = () => contributors().reduce((sum, c) => sum + c.xp, 0)
+  const repoLevel = () => Math.floor(Math.sqrt(totalRepoXp()) * 0.2) || 1
+  const getRepoRank = (lvl: number) => {
+    if (lvl >= 20) return 'Elite Tier'
+    if (lvl >= 15) return 'Enterprise Tier'
+    if (lvl >= 10) return 'Production Tier'
+    if (lvl >= 5) return 'Beta Tier'
+    return 'Sandbox Tier'
+  }
+  const getNextLevelXp = (lvl: number) => Math.round(Math.pow((lvl + 1) / 0.2, 2))
+  const getCurrentLevelXp = (lvl: number) => Math.round(Math.pow(lvl / 0.2, 2))
+  const getLevelProgressPercent = () => {
+    const lvl = repoLevel()
+    const currentMin = getCurrentLevelXp(lvl)
+    const nextMax = getNextLevelXp(lvl)
+    const currentXp = totalRepoXp()
+    const range = nextMax - currentMin
+    if (range <= 0) return 0
+    return Math.max(0, Math.min(100, ((currentXp - currentMin) / range) * 100))
+  }
+
+  const getXpDistribution = () => {
+    const list = contributors()
+    const total = totalRepoXp()
+    if (total === 0) return []
+    return list.map(c => ({
+      username: c.username,
+      percent: Math.round((c.xp / total) * 100),
+      xp: c.xp
+    })).sort((a, b) => b.xp - a.xp)
+  }
+
+  const getCommitDaysDistribution = () => {
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+    const counts = [0, 0, 0, 0, 0, 0, 0]
+    events().forEach(e => {
+      if (e.rawDate) {
+        const dayIdx = new Date(e.rawDate).getDay()
+        counts[dayIdx] += 1
+      }
+    })
+    const max = Math.max(...counts) || 1
+    return days.map((day, idx) => ({
+      day,
+      count: counts[idx],
+      percent: Math.round((counts[idx] / max) * 100)
+    }))
+  }
+
   const getRankColor = (index: number) => {
     if (index === 0) return 'text-[#070A13] border-theme-accent bg-theme-accent'
     if (index === 1) return 'text-[#070A13] border-theme-secondary bg-theme-secondary'
@@ -478,7 +527,7 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
                       <div class="bg-theme-bg border border-theme-border/40 rounded-3xl p-4 flex flex-col justify-between">
                         <span class="text-[9px] text-theme-secondary font-molengo uppercase tracking-wider">Cumulative Experience</span>
                         <div class="font-montserrat text-2xl font-extrabold text-theme-primary mt-2">
-                          {contributors().reduce((sum, c) => sum + c.xp, 0)}
+                          {totalRepoXp()}
                         </div>
                       </div>
 
@@ -498,30 +547,56 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
                     </div>
                   </div>
 
-                  <div class="bg-theme-card border border-theme-border rounded-3xl p-6 flex-1 transition-colors duration-200">
-                    <h2 class="font-montserrat text-sm font-extrabold tracking-widest uppercase mb-1 text-theme-primary">Progression Tiers</h2>
-                    <p class="text-[9px] text-theme-secondary font-molengo uppercase tracking-widest mb-6">Tiers & Milestones</p>
+                  <div class="bg-theme-card border border-theme-border rounded-3xl p-6 flex-1 transition-colors duration-200 flex flex-col justify-between">
+                    <div>
+                      <h2 class="font-montserrat text-sm font-extrabold tracking-widest uppercase mb-1 text-theme-primary">Repository Level</h2>
+                      <p class="text-[9px] text-theme-secondary font-molengo uppercase tracking-widest mb-6">Guild Rank & Milestones</p>
 
-                    <div class="flex flex-col gap-5">
-                      <div class="border-l-2 border-theme-accent pl-4">
-                        <div class="font-montserrat font-bold text-xs text-theme-primary">Vanguard Tier (Level 20+)</div>
-                        <p class="text-[10px] text-theme-secondary mt-1 leading-relaxed">
-                          Unlocked by core systems engineering and performance refactoring tasks.
-                        </p>
+                      <div class="flex items-center gap-4 mb-6">
+                        <div class="w-16 h-16 rounded-full border-2 border-theme-accent flex flex-col items-center justify-center bg-theme-bg shrink-0">
+                          <span class="text-[8px] font-molengo uppercase tracking-widest text-theme-secondary leading-none">Level</span>
+                          <span class="font-montserrat text-xl font-extrabold text-theme-primary mt-1">{repoLevel()}</span>
+                        </div>
+                        <div>
+                          <div class="font-montserrat font-bold text-sm text-theme-primary">{getRepoRank(repoLevel())}</div>
+                          <div class="text-[10px] text-theme-secondary mt-1 font-hind">
+                            {totalRepoXp()} / {getNextLevelXp(repoLevel())} total XP
+                          </div>
+                        </div>
                       </div>
 
-                      <div class="border-l-2 border-theme-secondary pl-4">
-                        <div class="font-montserrat font-bold text-xs text-theme-primary">Artisan Tier (Level 10-19)</div>
-                        <p class="text-[10px] text-theme-secondary mt-1 leading-relaxed">
-                          Achieved through consistent reviews, automation flows, and styling.
-                        </p>
+                      <div class="w-full bg-theme-bg/60 border border-theme-border/30 rounded-full h-2 overflow-hidden mb-6">
+                        <div
+                          class="bg-theme-accent h-full transition-all duration-500 rounded-full"
+                          style={{ width: `${getLevelProgressPercent()}%` }}
+                        ></div>
                       </div>
 
-                      <div class="border-l-2 border-theme-border pl-4">
-                        <div class="font-montserrat font-bold text-xs text-theme-primary">Novice Tier (Level 1-9)</div>
-                        <p class="text-[10px] text-theme-secondary mt-1 leading-relaxed">
-                          Starting path earned by closing detailed issues and commenting.
-                        </p>
+                      <div class="flex flex-col gap-4">
+                        <div class={`flex items-center gap-3 text-xs ${repoLevel() >= 5 ? 'text-theme-primary' : 'text-theme-secondary/60'}`}>
+                          <span class={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 text-[10px] ${repoLevel() >= 5 ? 'border-theme-accent bg-theme-accent text-[#070A13]' : 'border-theme-border/50'}`}>
+                            {repoLevel() >= 5 ? '✓' : '5'}
+                          </span>
+                          <span>Beta Tier: Advanced analytics unlocked</span>
+                        </div>
+                        <div class={`flex items-center gap-3 text-xs ${repoLevel() >= 10 ? 'text-theme-primary' : 'text-theme-secondary/60'}`}>
+                          <span class={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 text-[10px] ${repoLevel() >= 10 ? 'border-theme-accent bg-theme-accent text-[#070A13]' : 'border-theme-border/50'}`}>
+                            {repoLevel() >= 10 ? '✓' : '10'}
+                          </span>
+                          <span>Production Tier: Custom contributor badges</span>
+                        </div>
+                        <div class={`flex items-center gap-3 text-xs ${repoLevel() >= 15 ? 'text-theme-primary' : 'text-theme-secondary/60'}`}>
+                          <span class={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 text-[10px] ${repoLevel() >= 15 ? 'border-theme-accent bg-theme-accent text-[#070A13]' : 'border-theme-border/50'}`}>
+                            {repoLevel() >= 15 ? '✓' : '15'}
+                          </span>
+                          <span>Enterprise Tier: Custom team titles</span>
+                        </div>
+                        <div class={`flex items-center gap-3 text-xs ${repoLevel() >= 20 ? 'text-theme-primary' : 'text-theme-secondary/60'}`}>
+                          <span class={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 text-[10px] ${repoLevel() >= 20 ? 'border-theme-accent bg-theme-accent text-[#070A13]' : 'border-theme-border/50'}`}>
+                            {repoLevel() >= 20 ? '✓' : '20'}
+                          </span>
+                          <span>Elite Tier: Hall of Fame status</span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -530,32 +605,56 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
             </Match>
             <Match when={activeTab() === 'analytics'}>
               <div class="flex-1 overflow-y-auto px-4 sm:px-6 py-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div class="bg-theme-card border border-theme-border rounded-3xl p-6 sm:p-8 transition-colors duration-200">
-                  <h2 class="font-montserrat text-base sm:text-lg font-extrabold tracking-widest uppercase mb-6 text-theme-primary">XP Contribution Analytics</h2>
-                  <div class="flex flex-col gap-4">
-                    <div class="flex items-center justify-between p-4 bg-theme-bg border border-theme-border/40 rounded-2xl">
-                      <span class="text-xs font-semibold text-theme-primary">Merged Pull Request (Base)</span>
-                      <span class="text-xs font-bold text-theme-accent">50 XP</span>
+                <div class="flex flex-col gap-6">
+                  <div class="bg-theme-card border border-theme-border rounded-3xl p-6 sm:p-8 transition-colors duration-200">
+                    <h2 class="font-montserrat text-sm font-extrabold tracking-widest uppercase mb-1 text-theme-primary">Team XP Balance</h2>
+                    <p class="text-[9px] text-theme-secondary font-molengo uppercase tracking-widest mb-6">Experience Point Distribution</p>
+                    <div class="flex flex-col gap-4">
+                      <For
+                        each={getXpDistribution()}
+                        fallback={
+                          <div class="py-6 text-center border border-dashed border-theme-border rounded-2xl bg-theme-bg">
+                            <p class="text-theme-secondary font-molengo text-xs italic">No XP distributed yet</p>
+                          </div>
+                        }
+                      >
+                        {(dist) => (
+                          <div class="flex flex-col">
+                            <div class="flex justify-between items-center text-xs font-semibold">
+                              <span class="text-theme-primary">@{dist.username}</span>
+                              <span class="text-theme-accent">{dist.xp} XP ({dist.percent}%)</span>
+                            </div>
+                            <div class="w-full bg-theme-bg/60 border border-theme-border/30 rounded-full h-1.5 overflow-hidden mt-1.5">
+                              <div
+                                class="bg-theme-accent h-full rounded-full transition-all duration-300"
+                                style={{ width: `${dist.percent}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        )}
+                      </For>
                     </div>
-                    <div class="flex items-center justify-between p-4 bg-theme-bg border border-theme-border/40 rounded-2xl">
-                      <span class="text-xs font-semibold text-theme-primary">Closed Issue (Base)</span>
-                      <span class="text-xs font-bold text-theme-accent">30 XP</span>
+                  </div>
+
+                  <div class="bg-theme-card border border-theme-border rounded-3xl p-6 sm:p-8 transition-colors duration-200">
+                    <h2 class="font-montserrat text-sm font-extrabold tracking-widest uppercase mb-1 text-theme-primary">Activity Cadence</h2>
+                    <p class="text-[9px] text-theme-secondary font-molengo uppercase tracking-widest mb-6">Commit Distribution by Day</p>
+                    <div class="flex flex-col gap-3.5">
+                      <For each={getCommitDaysDistribution()}>
+                        {(item) => (
+                          <div class="flex items-center gap-3">
+                            <span class="text-[10px] font-bold text-theme-secondary w-16 uppercase tracking-wider shrink-0">{item.day.substring(0, 3)}</span>
+                            <div class="flex-1 bg-theme-bg/60 border border-theme-border/30 rounded-full h-2 overflow-hidden">
+                              <div
+                                class="bg-theme-secondary h-full rounded-full transition-all duration-300"
+                                style={{ width: `${item.percent}%` }}
+                              ></div>
+                            </div>
+                            <span class="text-[10px] font-bold text-theme-primary w-6 text-right shrink-0">{item.count}</span>
+                          </div>
+                        )}
+                      </For>
                     </div>
-                    <div class="flex items-center justify-between p-4 bg-theme-bg border border-theme-border/40 rounded-2xl">
-                      <span class="text-xs font-semibold text-theme-primary">Approved Review (Base)</span>
-                      <span class="text-xs font-bold text-theme-accent">25 XP</span>
-                    </div>
-                    <div class="flex items-center justify-between p-4 bg-theme-bg border border-theme-border/40 rounded-2xl">
-                      <span class="text-xs font-semibold text-theme-primary">Opened Detailed Issue (Base)</span>
-                      <span class="text-xs font-bold text-theme-accent">10 XP</span>
-                    </div>
-                    <div class="flex items-center justify-between p-4 bg-theme-bg border border-theme-border/40 rounded-2xl">
-                      <span class="text-xs font-semibold text-theme-primary">Inline Review Comment (Base)</span>
-                      <span class="text-xs font-bold text-theme-accent">5 XP</span>
-                    </div>
-                    <p class="text-[10px] text-theme-secondary mt-2 leading-relaxed">
-                      Note: Additional XP bonuses are awarded for heavy refactoring, resolving merge conflicts, adding documentation, batch commits, and maintaining activity streaks.
-                    </p>
                   </div>
                 </div>
 
@@ -694,30 +793,81 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
                       <p class="text-xs text-theme-secondary font-hind">Awarded experience points across active repository contributions.</p>
                     </div>
                     
-                    <div class="grid grid-cols-2 gap-3">
-                      <div class="p-3 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
-                        <span class="text-xs text-theme-primary font-hind">PR Merge</span>
-                        <span class="text-xs font-bold text-theme-accent font-montserrat">+50 XP</span>
+                    <div class="flex flex-col gap-4">
+                      <div>
+                        <h3 class="text-[10px] font-bold text-theme-secondary uppercase tracking-wider mb-2.5">Base Actions</h3>
+                        <div class="grid grid-cols-2 gap-2.5">
+                          <div class="p-2.5 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
+                            <span class="text-[11px] text-theme-primary font-hind">PR Merge</span>
+                            <span class="text-[11px] font-bold text-theme-accent font-montserrat">+50 XP</span>
+                          </div>
+                          <div class="p-2.5 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
+                            <span class="text-[11px] text-theme-primary font-hind">Publish Release</span>
+                            <span class="text-[11px] font-bold text-theme-accent font-montserrat">+100 XP</span>
+                          </div>
+                          <div class="p-2.5 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
+                            <span class="text-[11px] text-theme-primary font-hind">Close Issue</span>
+                            <span class="text-[11px] font-bold text-theme-accent font-montserrat">+30 XP</span>
+                          </div>
+                          <div class="p-2.5 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
+                            <span class="text-[11px] text-theme-primary font-hind">Approved Review</span>
+                            <span class="text-[11px] font-bold text-theme-accent font-montserrat">+25 XP</span>
+                          </div>
+                          <div class="p-2.5 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
+                            <span class="text-[11px] text-theme-primary font-hind">Wiki Update</span>
+                            <span class="text-[11px] font-bold text-theme-accent font-montserrat">+20 XP</span>
+                          </div>
+                          <div class="p-2.5 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
+                            <span class="text-[11px] text-theme-primary font-hind">Direct Commit</span>
+                            <span class="text-[11px] font-bold text-theme-accent font-montserrat">+10 XP</span>
+                          </div>
+                          <div class="p-2.5 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
+                            <span class="text-[11px] text-theme-primary font-hind">Open PR / Issue</span>
+                            <span class="text-[11px] font-bold text-theme-accent font-montserrat">+10 XP</span>
+                          </div>
+                          <div class="p-2.5 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
+                            <span class="text-[11px] text-theme-primary font-hind">Review / Comment</span>
+                            <span class="text-[11px] font-bold text-theme-accent font-montserrat">+5 XP</span>
+                          </div>
+                          <div class="p-2.5 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
+                            <span class="text-[11px] text-theme-primary font-hind">Resolve Conflict</span>
+                            <span class="text-[11px] font-bold text-theme-accent font-montserrat">+15 XP</span>
+                          </div>
+                          <div class="p-2.5 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
+                            <span class="text-[11px] text-theme-primary font-hind">Issue Comment</span>
+                            <span class="text-[11px] font-bold text-theme-accent font-montserrat">+2 XP</span>
+                          </div>
+                        </div>
                       </div>
-                      <div class="p-3 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
-                        <span class="text-xs text-theme-primary font-hind">Close Issue</span>
-                        <span class="text-xs font-bold text-theme-accent font-montserrat">+30 XP</span>
-                      </div>
-                      <div class="p-3 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
-                        <span class="text-xs text-theme-primary font-hind">Approved Review</span>
-                        <span class="text-xs font-bold text-theme-accent font-montserrat">+25 XP</span>
-                      </div>
-                      <div class="p-3 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
-                        <span class="text-xs text-theme-primary font-hind">Direct Commit</span>
-                        <span class="text-xs font-bold text-theme-accent font-montserrat">+10 XP</span>
-                      </div>
-                      <div class="p-3 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
-                        <span class="text-xs text-theme-primary font-hind">Open PR</span>
-                        <span class="text-xs font-bold text-theme-accent font-montserrat">+10 XP</span>
-                      </div>
-                      <div class="p-3 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
-                        <span class="text-xs text-theme-primary font-hind">Issue Comment</span>
-                        <span class="text-xs font-bold text-theme-accent font-montserrat">+2 XP</span>
+
+                      <div class="mt-2">
+                        <h3 class="text-[10px] font-bold text-theme-secondary uppercase tracking-wider mb-2.5">Special Bonuses</h3>
+                        <div class="grid grid-cols-2 gap-2.5">
+                          <div class="p-2.5 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
+                            <span class="text-[11px] text-theme-primary font-hind">Colossal Contribution</span>
+                            <span class="text-[11px] font-bold text-theme-secondary font-montserrat">+40 XP</span>
+                          </div>
+                          <div class="p-2.5 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
+                            <span class="text-[11px] text-theme-primary font-hind">Refactoring Wizard</span>
+                            <span class="text-[11px] font-bold text-theme-secondary font-montserrat">+25 XP</span>
+                          </div>
+                          <div class="p-2.5 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
+                            <span class="text-[11px] text-theme-primary font-hind">Heavy Lifter</span>
+                            <span class="text-[11px] font-bold text-theme-secondary font-montserrat">+20 XP</span>
+                          </div>
+                          <div class="p-2.5 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
+                            <span class="text-[11px] text-theme-primary font-hind">Clean Slate</span>
+                            <span class="text-[11px] font-bold text-theme-secondary font-montserrat">+20 XP</span>
+                          </div>
+                          <div class="p-2.5 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
+                            <span class="text-[11px] text-theme-primary font-hind">Architect</span>
+                            <span class="text-[11px] font-bold text-theme-secondary font-montserrat">+15 XP</span>
+                          </div>
+                          <div class="p-2.5 bg-theme-bg border border-theme-border/30 rounded-xl flex justify-between items-center">
+                            <span class="text-[11px] text-theme-primary font-hind">Doc Evangelist</span>
+                            <span class="text-[11px] font-bold text-theme-secondary font-montserrat">+15 XP</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
