@@ -100,11 +100,11 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
   const totalRepoXp = () => contributors().reduce((sum, c) => sum + c.xp, 0)
   const repoLevel = () => Math.floor(Math.sqrt(totalRepoXp()) * 0.2) || 1
   const getRepoRank = (lvl: number) => {
-    if (lvl >= 20) return 'Mythic Guild'
-    if (lvl >= 15) return 'Golden Sanctuary'
-    if (lvl >= 10) return 'Silver Citadel'
-    if (lvl >= 5) return 'Iron Forge'
-    return 'Novice Outpost'
+    if (lvl >= 20) return 'Elite Tier'
+    if (lvl >= 15) return 'Enterprise Tier'
+    if (lvl >= 10) return 'Production Tier'
+    if (lvl >= 5) return 'Beta Tier'
+    return 'Sandbox Tier'
   }
   const getNextLevelXp = (lvl: number) => Math.round(Math.pow((lvl + 1) / 0.2, 2))
   const getCurrentLevelXp = (lvl: number) => Math.round(Math.pow(lvl / 0.2, 2))
@@ -549,25 +549,25 @@ export default function LeaderboardView(props: LeaderboardViewProps) {
                           <span class={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 text-[10px] ${repoLevel() >= 5 ? 'border-theme-accent bg-theme-accent text-[#070A13]' : 'border-theme-border/50'}`}>
                             {repoLevel() >= 5 ? '✓' : '5'}
                           </span>
-                          <span>Iron Forge: Advanced analytics unlocked</span>
+                          <span>Beta Tier: Advanced analytics unlocked</span>
                         </div>
                         <div class={`flex items-center gap-3 text-xs ${repoLevel() >= 10 ? 'text-theme-primary' : 'text-theme-secondary/60'}`}>
                           <span class={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 text-[10px] ${repoLevel() >= 10 ? 'border-theme-accent bg-theme-accent text-[#070A13]' : 'border-theme-border/50'}`}>
                             {repoLevel() >= 10 ? '✓' : '10'}
                           </span>
-                          <span>Silver Citadel: Custom contributor badges</span>
+                          <span>Production Tier: Custom contributor badges</span>
                         </div>
                         <div class={`flex items-center gap-3 text-xs ${repoLevel() >= 15 ? 'text-theme-primary' : 'text-theme-secondary/60'}`}>
                           <span class={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 text-[10px] ${repoLevel() >= 15 ? 'border-theme-accent bg-theme-accent text-[#070A13]' : 'border-theme-border/50'}`}>
                             {repoLevel() >= 15 ? '✓' : '15'}
                           </span>
-                          <span>Golden Sanctuary: Custom team titles</span>
+                          <span>Enterprise Tier: Custom team titles</span>
                         </div>
                         <div class={`flex items-center gap-3 text-xs ${repoLevel() >= 20 ? 'text-theme-primary' : 'text-theme-secondary/60'}`}>
                           <span class={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 text-[10px] ${repoLevel() >= 20 ? 'border-theme-accent bg-theme-accent text-[#070A13]' : 'border-theme-border/50'}`}>
                             {repoLevel() >= 20 ? '✓' : '20'}
                           </span>
-                          <span>Mythic Guild: Hall of Fame status</span>
+                          <span>Elite Tier: Hall of Fame status</span>
                         </div>
                       </div>
                     </div>
