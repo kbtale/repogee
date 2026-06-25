@@ -21,3 +21,23 @@ pub fn format_progress_bar(xp: u32, next_level_xp: u32) -> String {
 pub fn clean_title(title: &str) -> String {
     title.trim().to_lowercase()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_format_progress_bar() {
+        assert_eq!(format_progress_bar(50, 100), "█████░░░░░ 50.0%");
+        assert_eq!(format_progress_bar(0, 100), "░░░░░░░░░░ 0.0%");
+        assert_eq!(format_progress_bar(100, 100), "██████████ 100.0%");
+        assert_eq!(format_progress_bar(120, 100), "██████████ 120.0%");
+    }
+
+    #[test]
+    fn test_clean_title() {
+        assert_eq!(clean_title("  Feat: Add Auth  "), "feat: add auth");
+        assert_eq!(clean_title("FIX: BUG "), "fix: bug");
+    }
+}
+
