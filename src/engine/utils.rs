@@ -1,4 +1,3 @@
-/// Formats the XP progress bar as a string representation.
 pub fn format_progress_bar(xp: u32, next_level_xp: u32) -> String {
     if next_level_xp == 0 {
         return "██████████ 100%".to_string();
@@ -17,7 +16,6 @@ pub fn format_progress_bar(xp: u32, next_level_xp: u32) -> String {
     format!("{} {:.1}%", bar, percentage)
 }
 
-/// Trims and standardizes pull request titles for gamification metrics.
 pub fn clean_title(title: &str) -> String {
     title.trim().to_lowercase()
 }

@@ -1,4 +1,3 @@
-import { JSX } from 'solid-js';
 
 interface LevelBadgeProps {
   level: number;
